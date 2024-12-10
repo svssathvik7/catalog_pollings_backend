@@ -1,5 +1,5 @@
 use actix_web::{App, HttpResponse, HttpServer};
-
+pub mod db;
 #[actix_web::get("/")]
 async fn home() -> HttpResponse{
     HttpResponse::Ok().json("Welcome to polling app backend")
