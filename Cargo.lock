@@ -1614,6 +1614,7 @@ dependencies = [
  "actix-web",
  "dotenv",
  "mongodb",
+ "serde",
  "serde_json",
  "webauthn-rs",
 ]
