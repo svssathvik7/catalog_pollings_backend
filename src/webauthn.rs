@@ -7,9 +7,7 @@ pub fn config_webauthn() -> Result<Data<Webauthn>, Box<dyn Error>> {
     let rp_id = "localhost";
     // rp refers to the client
     let rp_origin = Url::parse("http://localhost:3000").expect("Invalid URL");
-    let builder = WebauthnBuilder::new(rp_id, &rp_origin).map_err(|e|{
-        println!("{:?}",e);
-    }).expect("Failed building webauthn!");
+    let builder = WebauthnBuilder::new(rp_id, &rp_origin).expect("Failed building webauthn!");
 
     let builder = builder.rp_name("Sathvik Polling Technologies!");
 
