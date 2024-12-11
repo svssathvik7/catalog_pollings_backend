@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use mongodb::{results::InsertOneResult, Collection, Database};
+use mongodb::{bson::doc, results::InsertOneResult, Collection, Database};
 use serde::{Deserialize, Serialize};
 
 use super::DB;
@@ -25,6 +25,12 @@ impl RegStateRepo {
 
     pub async fn insert(&self,reg_state_entry: RegState) -> Result<InsertOneResult,mongodb::error::Error>{
         let result = self.collection.insert_one(reg_state_entry).await;
+        result
+    }
+
+    pub async fn find_by_username(&self,username: &str) -> Result<Option<RegState>,mongodb::error::Error>{
+        let filter = doc! {username: username};
+        let result = self.collection.find_one(filter).await;
         result
     }
 }

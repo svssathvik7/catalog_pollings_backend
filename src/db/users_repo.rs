@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use mongodb::{bson::doc, Collection, Database};
+use mongodb::{bson::doc, results::InsertOneResult, Collection, Database};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize,Deserialize)]
@@ -26,5 +26,10 @@ impl UserRepo {
         let filter = doc! {username: username};
         let result = self.collection.find_one(filter).await?;
         Ok(result)
+    }
+
+    pub async fn insert(&self,new_user: User) -> Result<InsertOneResult,mongodb::error::Error>{
+        let result = self.collection.insert_one(new_user).await;
+        result
     }
 }
