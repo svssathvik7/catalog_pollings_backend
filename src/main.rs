@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use actix_web::{
     web::{scope, Data},
     App, HttpResponse, HttpServer,
@@ -22,7 +23,9 @@ async fn main() -> Result<(), std::io::Error> {
             .service(home)
             .app_data(mongodb.clone())
             .app_data(webauthn.clone())
-            .service(scope("/auth").configure(auth_route::init))
+            .service(scope("/auth").configure(auth_route::init)).wrap(
+                Cors::default().allow_any_header().allow_any_method().allow_any_origin()
+            )
     })
     .bind("localhost:5000")?
     .run()

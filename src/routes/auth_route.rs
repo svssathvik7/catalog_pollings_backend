@@ -42,7 +42,8 @@ pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: 
     };
 
     let result = match db.reg_states.insert(new_user_reg_state).await{
-        Ok(_success) => {
+        Ok(success) => {
+            println!("{:?}",success);
             HttpResponse::Ok().status(StatusCode::CREATED).json(ccr)
         },
         Err(e) => {
@@ -53,15 +54,17 @@ pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: 
     result
 }
 
+#[actix_web::post("/register/finish/{username}")]
 pub async fn finish_registration(db:Data<DB>,webauthn: Data<Webauthn>, username: Path<String>, request: Json<RegisterPublicKeyCredential>) -> impl Responder{
-    
+    // println!("{:?}",request);
     let username = username.as_str();
+    println!("{}",username);
     let reg_state_match = match db.reg_states.find_by_username(username).await {
         Ok(Some(document_match)) => document_match.reg_state,
         Ok(None) => {return HttpResponse::Forbidden().status(StatusCode::FORBIDDEN).json("No initiation of registration found!");},
         Err(e) => {
-            eprint!("No such user's reg state found {:?}",e);
-            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("No such user's reg state found");
+            eprint!("Failed getting reg state {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Failed getting reg state");
         }
     };
 
@@ -107,7 +110,8 @@ pub async fn finish_registration(db:Data<DB>,webauthn: Data<Webauthn>, username:
     result
 }
 
+
 pub fn init(cnf: &mut ServiceConfig) -> () {
-    cnf.service(start_registration);
+    cnf.service(start_registration).service(finish_registration);
     ()
 }

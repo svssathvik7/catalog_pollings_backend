@@ -29,8 +29,9 @@ impl RegStateRepo {
     }
 
     pub async fn find_by_username(&self,username: &str) -> Result<Option<RegState>,mongodb::error::Error>{
-        let filter = doc! {username: username};
+        let filter = doc! {"username": username};
         let result = self.collection.find_one(filter).await;
+        print!("found {:?}",result);
         result
     }
 }

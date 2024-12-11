@@ -32,4 +32,17 @@ impl UserRepo {
         let result = self.collection.insert_one(new_user).await;
         result
     }
+
+    // O(1) instead of find_by_username's O(n) for checking
+    pub async fn is_exists(&self,username:&str) -> Result<bool, mongodb::error::Error>{
+        let filter= doc! {username: username};
+        let exists = match self.collection.count_documents(filter).await {
+            Ok(count) => Ok(count>0),
+            Err(e) => {
+                eprint!("Error counting documents with username {:?}",e);
+                Ok(false)
+            }
+        };
+        exists
+    }
 }
