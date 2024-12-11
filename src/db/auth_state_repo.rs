@@ -20,6 +20,20 @@ impl AuthStateRepo{
     }
 
     pub async fn insert(&self,auth_state_entry: AuthState) -> Result<InsertOneResult,mongodb::error::Error>{
+        let username = &auth_state_entry.username;
+        let _auth_state_alread_exists = match self.is_exists(username).await{
+            Ok(data) => {
+                if data{
+                    self.delete_by_username(username).await.unwrap();
+                }
+                else{
+                    ()
+                }
+            },
+            Err(e) => {
+                eprint!("Error deleting a duplicate record {:?}",e);
+            }
+        };
         let result = self.collection.insert_one(auth_state_entry).await;
         result
     }
