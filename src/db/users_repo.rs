@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use mongodb::{bson::doc, results::InsertOneResult, Collection, Database};
+use mongodb::{bson::doc, results::InsertOneResult, Collection, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize,Deserialize)]
@@ -17,6 +17,13 @@ pub struct UserRepo {
 impl UserRepo {
     pub async fn init(db: &Database) -> Self {
         let users_collection = db.collection("users");
+        let index = IndexModel::builder().keys(doc! {"username": 1}).options(
+            mongodb::options::IndexOptions::builder().unique(true).name(Some("unique_username".to_string())).build()
+        ).build();
+
+        if let Err(e) = users_collection.create_index(index).await {
+            eprintln!("Failed to create index on `username`: {:?}", e);
+        }
         Self {
             collection: users_collection,
         }
