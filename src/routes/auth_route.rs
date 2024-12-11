@@ -124,6 +124,7 @@ pub async fn start_authentication(username:Path<String>, db: Data<DB>, webauthn:
     let _does_user_exist = match db.users.is_exists(username).await{
         Ok(boolean_response) => {
             if boolean_response{
+                println!("{}",boolean_response);
                 boolean_response
             }else{
                 return HttpResponse::NotFound().status(StatusCode::NOT_FOUND).json("No user found to sign in");
@@ -187,8 +188,10 @@ pub async fn start_authentication(username:Path<String>, db: Data<DB>, webauthn:
     return HttpResponse::Ok().status(StatusCode::CREATED).json(rcr);
 }
 
+#[actix_web::post("/login/finish/{username}")]
 pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: Data<Webauthn>,req:Json<PublicKeyCredential>) -> impl Responder{
     let username = username.as_str();
+    println!("{}",username);
     let _does_auth_state_exist = match db.auth_states.is_exists(username).await {
         Ok(data) => {
             if data{
@@ -236,10 +239,10 @@ pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: D
         }
     };
 
-    return HttpResponse::Ok().status(StatusCode::CREATED).json("rcr");
+    return HttpResponse::Ok().status(StatusCode::CREATED).json("User logged in!");
 }
 
 pub fn init(cnf: &mut ServiceConfig) -> () {
-    cnf.service(start_registration).service(finish_registration);
+    cnf.service(start_registration).service(finish_registration).service(start_authentication).service(finish_authentication);
     ()
 }

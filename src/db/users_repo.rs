@@ -23,7 +23,7 @@ impl UserRepo {
     }
 
     pub async fn search_by_username(&self,username: &str) -> Result<Option<User>,Box<dyn Error>>{
-        let filter = doc! {username: username};
+        let filter = doc! {"username": username};
         let result = self.collection.find_one(filter).await?;
         Ok(result)
     }
@@ -31,11 +31,11 @@ impl UserRepo {
     pub async fn insert(&self,new_user: User) -> Result<InsertOneResult,mongodb::error::Error>{
         let result = self.collection.insert_one(new_user).await;
         result
-    }
+    }   
 
     // O(1) instead of find_by_username's O(n) for checking
     pub async fn is_exists(&self,username:&str) -> Result<bool, mongodb::error::Error>{
-        let filter= doc! {username: username};
+        let filter= doc! {"username": username};
         let exists = match self.collection.count_documents(filter).await {
             Ok(count) => Ok(count>0),
             Err(e) => {
