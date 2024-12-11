@@ -1,9 +1,9 @@
 use actix_web::{
     http::StatusCode, web::{Data, Json, Path, ServiceConfig}, HttpResponse, Responder
 };
-use webauthn_rs::{prelude::{PasskeyRegistration, RegisterPublicKeyCredential, Uuid}, Webauthn};
+use webauthn_rs::{prelude::{Passkey, PasskeyRegistration, RegisterPublicKeyCredential, Uuid}, Webauthn};
 
-use crate::db::{reg_state_repo::RegState, users_repo::User, DB};
+use crate::db::{auth_state_repo::AuthState, reg_state_repo::RegState, users_repo::User, DB};
 
 #[actix_web::post("/register/start/{username}")]
 pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: Data<Webauthn>) -> impl Responder{
@@ -110,6 +110,68 @@ pub async fn finish_registration(db:Data<DB>,webauthn: Data<Webauthn>, username:
     result
 }
 
+#[actix_web::post("/login/start/{username}")]
+pub async fn start_authentication(username:Path<String>, db: Data<DB>, webauthn: Data<Webauthn>) -> impl Responder{
+    let username = username.as_str();
+    let _does_user_exist = match db.users.is_exists(username).await{
+        Ok(boolean_response) => boolean_response,
+        Err(e) => {
+            eprint!("No user found to sign in! {:?}",e);
+            return HttpResponse::NotFound().status(StatusCode::NOT_FOUND).json("No user found to sign in");
+        }
+    };
+
+    let user_sk = match db.users.search_by_username(username).await{
+        Ok(Some(user)) => user.sk,
+        Ok(None) => {
+            // control reaches this line only if a user exists. Hence a None might indicate a db controller issue
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error finding a user");
+        }
+        Err(e) => {
+            eprint!("Error searching user! {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error finding a user");
+        }
+    };
+
+    // for now just a single passkey
+    let sk: Vec<Passkey> = match serde_json::from_value(user_sk){
+        Ok(key) => vec![key],
+        Err(e) => {
+            eprint!("Error deserializing sk {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error deserializing sk");
+        }
+    };
+
+    let (rcr,auth_state) = match webauthn.start_passkey_authentication(&sk){
+        Ok(data) => data,
+        Err(e) => {
+            eprint!("Error generating auth challange {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error generating auth challange");
+        }
+    };
+
+    let serial_auth_state = match serde_json::to_value(auth_state) {
+        Ok(serial_auth_state) => serial_auth_state,
+        Err(e) => {
+            eprint!("Error serialzing auth state {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error serialzing auth state");
+        }
+    };
+
+    let auth_state_entry = AuthState{
+        auth_state: serial_auth_state,
+        username: username.to_string()
+    };
+
+    let _result = match db.auth_states.insert(auth_state_entry).await {
+        Ok(inserted) => inserted,
+        Err(e) => {
+            eprint!("Error writing auth state to db {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error writing auth state to db");
+        }
+    };
+    return HttpResponse::Ok().status(StatusCode::CREATED).json(rcr);
+}
 
 pub fn init(cnf: &mut ServiceConfig) -> () {
     cnf.service(start_registration).service(finish_registration);

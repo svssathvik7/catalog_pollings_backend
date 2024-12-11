@@ -15,6 +15,7 @@ pub struct RegStateRepo {
     collection: Collection<RegState>,
 }
 
+
 impl RegStateRepo {
     pub async fn init(db: &Database) -> Self {
         let reg_state_collection: Collection<RegState> = db.collection("reg_states");
