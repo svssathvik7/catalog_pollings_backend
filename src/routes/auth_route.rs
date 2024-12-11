@@ -58,7 +58,19 @@ pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: 
 pub async fn finish_registration(db:Data<DB>,webauthn: Data<Webauthn>, username: Path<String>, request: Json<RegisterPublicKeyCredential>) -> impl Responder{
     // println!("{:?}",request);
     let username = username.as_str();
-    println!("{}",username);
+    let _does_reg_state_exist = match db.reg_states.is_exists(username).await {
+        Ok(data) => {
+            if data{
+                data
+            }else{
+                return HttpResponse::NotFound().status(StatusCode::NOT_FOUND).json("No registration was initiated");
+            }
+        },
+        Err(e) => {
+            eprint!("Error registering {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("No registration was initiated due to internal server error");
+        }
+    };
     let reg_state_match = match db.reg_states.find_by_username(username).await {
         Ok(Some(document_match)) => document_match.reg_state,
         Ok(None) => {return HttpResponse::Forbidden().status(StatusCode::FORBIDDEN).json("No initiation of registration found!");},
@@ -191,7 +203,6 @@ pub async fn start_authentication(username:Path<String>, db: Data<DB>, webauthn:
 #[actix_web::post("/login/finish/{username}")]
 pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: Data<Webauthn>,req:Json<PublicKeyCredential>) -> impl Responder{
     let username = username.as_str();
-    println!("{}",username);
     let _does_auth_state_exist = match db.auth_states.is_exists(username).await {
         Ok(data) => {
             if data{

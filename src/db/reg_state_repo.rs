@@ -36,6 +36,18 @@ impl RegStateRepo {
         result
     }
 
+    pub async fn is_exists(&self,username: &str) -> Result<bool,mongodb::error::Error>{
+        let filter = doc! {"username": username};
+        let result = match self.collection.count_documents(filter).await {
+            Ok(data) => Ok(data>0),
+            Err(e) => {
+                eprint!("Error counting documents with username in auth state repo {:?}",e);
+                Ok(false)
+            }
+        };
+        result
+    }
+
     pub async fn delete_by_username(&self,username: &str) -> Result<DeleteResult,mongodb::error::Error>{
         let filter = doc! {"username": username};
         let result = self.collection.delete_one(filter).await;
