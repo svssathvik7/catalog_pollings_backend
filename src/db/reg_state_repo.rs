@@ -1,9 +1,5 @@
-use std::error::Error;
-
 use mongodb::{bson::doc, results::{DeleteResult, InsertOneResult}, Collection, Database};
 use serde::{Deserialize, Serialize};
-
-use super::DB;
 
 #[derive(Serialize,Deserialize,Debug)]
 pub struct RegState {
@@ -25,6 +21,20 @@ impl RegStateRepo {
     }
 
     pub async fn insert(&self,reg_state_entry: RegState) -> Result<InsertOneResult,mongodb::error::Error>{
+        let username = &reg_state_entry.username;
+        let _reg_state_alread_exists = match self.is_exists(username).await{
+            Ok(data) => {
+                if data{
+                    self.delete_by_username(username).await.unwrap();
+                }
+                else{
+                    ()
+                }
+            },
+            Err(e) => {
+                eprint!("Error deleting a duplicate record {:?}",e);
+            }
+        };
         let result = self.collection.insert_one(reg_state_entry).await;
         result
     }
@@ -50,7 +60,7 @@ impl RegStateRepo {
 
     pub async fn delete_by_username(&self,username: &str) -> Result<DeleteResult,mongodb::error::Error>{
         let filter = doc! {"username": username};
-        let result = self.collection.delete_one(filter).await;
+        let result = self.collection.delete_many(filter).await;
         result
     }
 }
