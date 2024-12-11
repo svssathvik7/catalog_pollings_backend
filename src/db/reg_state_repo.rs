@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use mongodb::{bson::doc, results::InsertOneResult, Collection, Database};
+use mongodb::{bson::doc, results::{DeleteResult, InsertOneResult}, Collection, Database};
 use serde::{Deserialize, Serialize};
 
 use super::DB;
@@ -33,6 +33,12 @@ impl RegStateRepo {
         let filter = doc! {"username": username};
         let result = self.collection.find_one(filter).await;
         print!("found {:?}",result);
+        result
+    }
+
+    pub async fn delete_by_username(&self,username: &str) -> Result<DeleteResult,mongodb::error::Error>{
+        let filter = doc! {"username": username};
+        let result = self.collection.delete_one(filter).await;
         result
     }
 }

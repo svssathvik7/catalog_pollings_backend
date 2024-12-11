@@ -1,10 +1,10 @@
 use actix_web::{
     http::StatusCode, web::{Data, Json, Path, ServiceConfig}, HttpResponse, Responder
 };
-use webauthn_rs::{prelude::{Passkey, PasskeyRegistration, RegisterPublicKeyCredential, Uuid}, Webauthn};
+use webauthn_rs::{prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration, PublicKeyCredential, RegisterPublicKeyCredential, Uuid}, Webauthn};
 
 use crate::db::{auth_state_repo::AuthState, reg_state_repo::RegState, users_repo::User, DB};
-
+// fetching user to check for exsitence is bad
 #[actix_web::post("/register/start/{username}")]
 pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: Data<Webauthn>) -> impl Responder{
     let username = username.as_str();
@@ -107,6 +107,14 @@ pub async fn finish_registration(db:Data<DB>,webauthn: Data<Webauthn>, username:
         }
     };
 
+    let _del_reg_state = match db.reg_states.delete_by_username(username).await {
+        Ok(response) => response,
+        Err(e) => {
+            eprint!("Error deleting the reg state of {:?} {:?}",username,e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Failed deleting the user reg state, try again after sometime");
+        }
+    };
+
     result
 }
 
@@ -114,7 +122,13 @@ pub async fn finish_registration(db:Data<DB>,webauthn: Data<Webauthn>, username:
 pub async fn start_authentication(username:Path<String>, db: Data<DB>, webauthn: Data<Webauthn>) -> impl Responder{
     let username = username.as_str();
     let _does_user_exist = match db.users.is_exists(username).await{
-        Ok(boolean_response) => boolean_response,
+        Ok(boolean_response) => {
+            if boolean_response{
+                boolean_response
+            }else{
+                return HttpResponse::NotFound().status(StatusCode::NOT_FOUND).json("No user found to sign in");
+            }
+        },
         Err(e) => {
             eprint!("No user found to sign in! {:?}",e);
             return HttpResponse::NotFound().status(StatusCode::NOT_FOUND).json("No user found to sign in");
@@ -171,6 +185,58 @@ pub async fn start_authentication(username:Path<String>, db: Data<DB>, webauthn:
         }
     };
     return HttpResponse::Ok().status(StatusCode::CREATED).json(rcr);
+}
+
+pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: Data<Webauthn>,req:Json<PublicKeyCredential>) -> impl Responder{
+    let username = username.as_str();
+    let _does_auth_state_exist = match db.auth_states.is_exists(username).await {
+        Ok(data) => {
+            if data{
+                data
+            }else{
+                return HttpResponse::NotFound().status(StatusCode::NOT_FOUND).json("No user found to finish authentication");
+            }
+        },
+        Err(e) => {
+            eprint!("Error authenticating {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("No user found to finish authentication");
+        }
+    };
+
+    let user_auth_state = match db.auth_states.find_by_username(username).await {
+        Ok(Some(data)) => data.auth_state,
+        Ok(None) => {return HttpResponse::NotFound().status(StatusCode::NOT_FOUND).json("No user found to finish authentication");},
+        Err(e) =>{
+            eprint!("Error fetching auth state {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error fetching auth state");
+        }
+    };
+
+    let deserialized_as: PasskeyAuthentication = match serde_json::from_value(user_auth_state) {
+        Ok(data) => data,
+        Err(e) => {
+            eprint!("Error deserialzing auth state {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error deserialzing auth state");
+        }
+    };
+
+    let _auth_result = match webauthn.finish_passkey_authentication(&req, &deserialized_as) {
+        Ok(result) => result,
+        Err(e) => {
+            eprint!("Error authenticating {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error authenticating");
+        }
+    };
+
+    let _del_auth_state = match db.auth_states.delete_by_username(username).await {
+        Ok(response) => response,
+        Err(e) => {
+            eprint!("Error deleting the auth state of {:?} {:?}",username,e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Failed deleting the user auth state, try again after sometime");
+        }
+    };
+
+    return HttpResponse::Ok().status(StatusCode::CREATED).json("rcr");
 }
 
 pub fn init(cnf: &mut ServiceConfig) -> () {
