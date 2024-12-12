@@ -5,8 +5,10 @@ use actix_web::{
 };
 use db::DB;
 use routes::auth_route;
+use utils::jwt::JWT;
 use webauthn::config_webauthn;
 pub mod db;
+pub mod utils;
 pub mod routes;
 pub mod webauthn;
 #[actix_web::get("/")]
@@ -17,12 +19,13 @@ async fn home() -> HttpResponse {
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
     let mongodb = Data::new(DB::init().await);
-    let webauthn = config_webauthn().unwrap();
+    let webauthn = Data::new(config_webauthn().unwrap());
+    let jwt = Data::new(JWT::init());
     HttpServer::new(move || {
         App::new()
             .service(home)
             .app_data(mongodb.clone())
-            .app_data(webauthn.clone())
+            .app_data(webauthn.clone()).app_data(jwt.clone())
             .service(scope("/auth").configure(auth_route::init)).wrap(
                 Cors::default().allow_any_header().allow_any_method().allow_any_origin()
             )
