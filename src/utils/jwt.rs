@@ -1,8 +1,8 @@
-use std::env;
+use std::{env, error::Error};
 
 use chrono::{Duration, Utc};
 use dotenv::dotenv;
-use jsonwebtoken::{encode, EncodingKey, Header};
+use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize,Serialize,Debug)]

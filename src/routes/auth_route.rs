@@ -262,7 +262,7 @@ pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: D
         }
     };
 
-    let cookie = Cookie::build("auth_token", jwt_token).path("/").http_only(true).max_age(Duration::hours(1)).secure(false).same_site(SameSite::None).finish();
+    let cookie = Cookie::build("auth_token", jwt_token).http_only(true).secure(false).same_site(SameSite::None).secure(true).path("/").max_age(Duration::seconds(3600)).finish();
 
 
     return HttpResponse::Ok().cookie(cookie).status(StatusCode::CREATED).json("User logged in!");
