@@ -1,10 +1,9 @@
 use actix_web::{
-    http::StatusCode, web::{Data, Json, Path, ServiceConfig}, HttpResponse, Responder
+    cookie::{time::Duration, Cookie, SameSite}, http::StatusCode, web::{Data, Json, Path, ServiceConfig}, HttpResponse, Responder
 };
 use webauthn_rs::{prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration, PublicKeyCredential, RegisterPublicKeyCredential, Uuid}, Webauthn};
 
-use crate::db::{auth_state_repo::AuthState, reg_state_repo::RegState, users_repo::User, DB};
-// fetching user to check for exsitence is bad
+use crate::{db::{auth_state_repo::AuthState, reg_state_repo::RegState, users_repo::User, DB}, utils::jwt::JWT};
 #[actix_web::post("/register/start/{username}")]
 pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: Data<Webauthn>) -> impl Responder{
     let username = username.as_str();
@@ -201,7 +200,7 @@ pub async fn start_authentication(username:Path<String>, db: Data<DB>, webauthn:
 }
 
 #[actix_web::post("/login/finish/{username}")]
-pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: Data<Webauthn>,req:Json<PublicKeyCredential>) -> impl Responder{
+pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: Data<Webauthn>,req:Json<PublicKeyCredential>, jwt: Data<JWT>) -> impl Responder{
     let username = username.as_str();
     let _does_auth_state_exist = match db.auth_states.is_exists(username).await {
         Ok(data) => {
@@ -250,7 +249,23 @@ pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: D
         }
     };
 
-    return HttpResponse::Ok().status(StatusCode::CREATED).json("User logged in!");
+    let uuid = match db.users.search_by_username(username).await.unwrap(){
+        Some(user) => user.uuid,
+        None => "1".to_string()
+    };
+
+    let jwt_token = match jwt.sign(uuid){
+        Ok(token ) => token,
+        Err(e) => {
+            eprint!("Error generating the jwt token {:?} {:?}",username,e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Error generating the jwt token");
+        }
+    };
+
+    let cookie = Cookie::build("auth_token", jwt_token).path("/").http_only(true).max_age(Duration::hours(1)).secure(false).same_site(SameSite::None).finish();
+
+
+    return HttpResponse::Ok().cookie(cookie).status(StatusCode::CREATED).json("User logged in!");
 }
 
 pub fn init(cnf: &mut ServiceConfig) -> () {
