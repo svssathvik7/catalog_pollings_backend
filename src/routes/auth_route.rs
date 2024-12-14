@@ -44,7 +44,6 @@ pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: 
 
     let result = match db.reg_states.insert(new_user_reg_state).await{
         Ok(success) => {
-            println!("{:?}",success);
             HttpResponse::Ok().status(StatusCode::CREATED).json(ccr)
         },
         Err(e) => {
@@ -57,7 +56,6 @@ pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: 
 
 #[actix_web::post("/register/finish/{username}")]
 pub async fn finish_registration(db:Data<DB>,webauthn: Data<Webauthn>, username: Path<String>, request: Json<RegisterPublicKeyCredential>) -> impl Responder{
-    // println!("{:?}",request);
     let username = username.as_str();
     let _does_reg_state_exist = match db.reg_states.is_exists(username).await {
         Ok(data) => {
@@ -137,7 +135,6 @@ pub async fn start_authentication(username:Path<String>, db: Data<DB>, webauthn:
     let _does_user_exist = match db.users.is_exists(username).await{
         Ok(boolean_response) => {
             if boolean_response{
-                println!("{}",boolean_response);
                 boolean_response
             }else{
                 return HttpResponse::NotFound().status(StatusCode::NOT_FOUND).json("No user found to sign in");
