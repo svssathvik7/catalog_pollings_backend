@@ -1,13 +1,12 @@
-use mongodb::{results::InsertOneResult, Collection, Database};
+use mongodb::{bson::oid::ObjectId, results::InsertOneResult, Collection, Database};
 use serde::{Deserialize, Serialize};
 
-use super::users_repo::User;
 
 #[derive(Deserialize,Serialize,Debug)]
 pub struct Option{
     pub text: String,
     pub votes_count: u64,
-    pub voters: Vec<User>
+    pub voters: Vec<ObjectId>
 }
 
 pub struct OptionRepo{
