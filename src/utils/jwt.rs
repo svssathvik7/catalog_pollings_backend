@@ -2,25 +2,21 @@ use std::{env, error::Error};
 
 use chrono::{Duration, Utc};
 use dotenv::dotenv;
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, TokenData, Validation};
+use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize,Serialize,Debug)]
 pub struct Claims{
     pub uuid: String,
     pub exp: usize,
-    // ensures no tampering & authenticity
-    pub token_secret: String
 }
 
 impl Claims{
     pub fn init(uuid:String,exp:usize) -> Self{
         dotenv().ok();
-        let token_secret = env::var("TOKEN_SECRET").expect("Required token secret key!");
         Claims{
             uuid,
-            exp,
-            token_secret
+            exp
         }
     }
 }
@@ -45,6 +41,16 @@ impl JWT{
         let encoded_secret = EncodingKey::from_secret(self.secret.as_bytes());
         let token = encode(header, &claims, &encoded_secret);
         token
+    }
+
+    pub fn verify(&self,token: &str) -> bool{
+        let mut validations = Validation::new(Algorithm::HS256);
+        validations.validate_exp = true;
+        if decode::<Claims>(token,&DecodingKey::from_secret(self.secret.as_ref()),&validations).is_ok(){
+            return true;
+        }
+
+        false
     }
 }
 
