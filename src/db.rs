@@ -9,6 +9,7 @@ use users_repo::UserRepo;
 pub mod reg_state_repo;
 pub mod users_repo;
 pub mod auth_state_repo;
+pub mod options_repo;
 
 pub struct DB {
     pub reg_states: RegStateRepo,

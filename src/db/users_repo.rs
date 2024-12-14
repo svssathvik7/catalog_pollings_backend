@@ -3,7 +3,7 @@ use std::error::Error;
 use mongodb::{bson::doc, results::InsertOneResult, Collection, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize,Deserialize,Debug)]
 pub struct User {
     pub username: String,
     pub uuid: String,
