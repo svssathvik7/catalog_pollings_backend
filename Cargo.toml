@@ -13,3 +13,4 @@ webauthn-rs = { version = "0.5.0", features = ["danger-allow-state-serialisation
 serde = { version = "1.0", features = ["derive"] }
 jsonwebtoken = "9.3.0"
 chrono = "0.4.39"
+log = "0.4.22"

@@ -5,20 +5,6 @@ use webauthn_rs::{prelude::{Passkey, PasskeyAuthentication, PasskeyRegistration,
 
 use crate::{db::{auth_state_repo::AuthState, reg_state_repo::RegState, users_repo::User, DB}, utils::jwt::JWT};
 
-#[actix_web::get("/auth/verify")]
-pub async fn verify(jwt:Data<JWT>, req: HttpRequest) -> impl Responder{
-    if let Some(cookie) = req.cookie("auth_token"){
-        let token = cookie.value();
-
-        if jwt.verify(token){
-            return HttpResponse::Ok().status(StatusCode::ACCEPTED).json("Token valid!");
-        }else{
-            return HttpResponse::Unauthorized().status(StatusCode::FORBIDDEN).json("Invalid or expired token!");
-        }
-    }
-    return HttpResponse::BadRequest().status(StatusCode::BAD_REQUEST).body("Missing auth token cookie");
-}
-
 
 #[actix_web::post("/register/start/{username}")]
 pub async fn start_registration(db: Data<DB>, username: Path<String>, webauthn: Data<Webauthn>) -> impl Responder{
@@ -278,13 +264,13 @@ pub async fn finish_authentication(username:Path<String>,db:Data<DB>,webauthn: D
         }
     };
 
-    let cookie = Cookie::build("auth_token", jwt_token).http_only(true).same_site(SameSite::None).secure(true).path("/").max_age(Duration::seconds(3600)).finish();
+    let cookie = Cookie::build("auth_token", jwt_token).http_only(true).same_site(SameSite::None).secure(true).path("/").max_age(Duration::days(7)).finish();
 
 
     return HttpResponse::Ok().cookie(cookie).status(StatusCode::CREATED).json("User logged in!");
 }
 
 pub fn init(cnf: &mut ServiceConfig) -> () {
-    cnf.service(start_registration).service(finish_registration).service(start_authentication).service(finish_authentication).service(verify);
+    cnf.service(start_registration).service(finish_registration).service(start_authentication).service(finish_authentication);
     ()
 }

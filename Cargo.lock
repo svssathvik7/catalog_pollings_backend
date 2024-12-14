@@ -1644,6 +1644,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "jsonwebtoken",
+ "log",
  "mongodb",
  "serde",
  "serde_json",
