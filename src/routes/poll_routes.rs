@@ -20,7 +20,13 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
     session.start_transaction().await.unwrap();
     let title = poll_data.title;
     let mut option_ids: Vec<ObjectId> = Vec::new();
-    let options = poll_data.options;
+    let options = if poll_data.options.len() < 2 {
+        poll_data.options
+    } else {
+        return HttpResponse::BadRequest()
+            .status(StatusCode::BAD_REQUEST)
+            .json("Minimum two options are required to create the poll!");
+    };
     let mut option_inserted = true;
     for option in options {
         let new_option = Option {

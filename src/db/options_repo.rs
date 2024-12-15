@@ -1,4 +1,8 @@
-use mongodb::{bson::{oid::ObjectId, Document}, results::{DeleteResult, InsertOneResult}, Collection, Database};
+use mongodb::{
+    bson::{oid::ObjectId, Document},
+    results::{DeleteResult, InsertOneResult},
+    Collection, Database,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -27,7 +31,7 @@ impl OptionRepo {
         result
     }
 
-    pub async fn delete(&self, filter: Document) -> Result<DeleteResult, mongodb::error::Error>{
+    pub async fn delete(&self, filter: Document) -> Result<DeleteResult, mongodb::error::Error> {
         let result = self.collection.delete_one(filter).await;
         result
     }
