@@ -2,7 +2,7 @@ use actix_web::{
     cookie::{time::Duration, Cookie, SameSite},
     http::StatusCode,
     web::{Data, Json, Path, ServiceConfig},
-    HttpRequest, HttpResponse, Responder,
+    HttpResponse, Responder,
 };
 use mongodb::bson::oid::ObjectId;
 use webauthn_rs::{
@@ -377,10 +377,25 @@ pub async fn finish_authentication(
         .json("User logged in!");
 }
 
+#[actix_web::get("/auth/logout")]
+pub async fn logout_user() -> impl Responder{
+    let cookie = Cookie::build("auth_token", "")
+        .http_only(true)
+        .same_site(SameSite::None)
+        .secure(true)
+        .path("/")
+        .max_age(Duration::days(-1))
+        .finish();
+    return HttpResponse::Ok()
+        .cookie(cookie)
+        .status(StatusCode::CREATED)
+        .json("User logged out!");
+}
+
 pub fn init(cnf: &mut ServiceConfig) -> () {
     cnf.service(start_registration)
         .service(finish_registration)
         .service(start_authentication)
-        .service(finish_authentication);
+        .service(finish_authentication).service(logout_user);
     ()
 }

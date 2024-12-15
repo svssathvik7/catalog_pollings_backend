@@ -1,9 +1,7 @@
 use std::vec;
 
 use actix_web::{
-    http::StatusCode,
-    web::{Data, Json, ServiceConfig},
-    HttpResponse, Responder,
+    http::StatusCode, web::{Data, Json, Path, ServiceConfig}, HttpResponse, Responder
 };
 use mongodb::bson::{doc, oid::ObjectId};
 
@@ -97,6 +95,13 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
     HttpResponse::Ok()
         .status(StatusCode::CREATED)
         .body("Successfully created poll!")
+}
+
+#[actix_web::get("/{id}")]
+pub async fn get_poll(id: Path<String>) -> impl Responder{
+    HttpResponse::Ok()
+    .status(StatusCode::CREATED)
+    .body("Successfully created poll!")
 }
 
 pub fn init(cnf: &mut ServiceConfig) {
