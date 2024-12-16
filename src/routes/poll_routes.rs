@@ -119,6 +119,6 @@ pub async fn get_poll(id: Path<String>,db:Data<DB>) -> impl Responder{
 }
 
 pub fn init(cnf: &mut ServiceConfig) {
-    cnf.service(create_poll);
+    cnf.service(create_poll).service(get_poll);
     ()
 }
