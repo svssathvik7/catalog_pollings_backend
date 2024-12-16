@@ -26,7 +26,7 @@ impl PollRepo {
         result
     }
 
-    pub async fn get(&self,poll_id: ObjectId) -> Result<Option<Document>,mongodb::error::Error>{
+    pub async fn get(&self,poll_id: &str) -> Result<Option<Document>,mongodb::error::Error>{
         let pipeline = vec![
             doc! {"_id" : poll_id},
             doc! {

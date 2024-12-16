@@ -98,10 +98,24 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
 }
 
 #[actix_web::get("/{id}")]
-pub async fn get_poll(id: Path<String>) -> impl Responder{
+pub async fn get_poll(id: Path<String>,db:Data<DB>) -> impl Responder{
+    let poll_data = match db.polls.get(id.as_str()).await{
+        Ok(Some(poll)) => poll,
+        Ok(None) => {
+            return HttpResponse::BadRequest()
+            .status(StatusCode::NOT_FOUND)
+            .body("No poll found!");
+        },
+        Err(e)=>{
+            eprint!("Error finding poll {:?}",e);
+            return HttpResponse::InternalServerError()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body("Failed fetching poll :(");
+        }
+    };
     HttpResponse::Ok()
-    .status(StatusCode::CREATED)
-    .body("Successfully created poll!")
+    .status(StatusCode::ACCEPTED)
+    .json(poll_data)
 }
 
 pub fn init(cnf: &mut ServiceConfig) {
