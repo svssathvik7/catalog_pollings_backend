@@ -40,14 +40,14 @@ impl PollRepo {
                     "from": "options",
                     "localField": "options",
                     "foreignField": "_id",
-                    "as": "expanded_options"
+                    "as": "options"
                 }
             },
             doc! {
                 "$project": {
                     "title": 1,
                     "owner_id": 1,
-                    "expanded_options": 1
+                    "options": 1
                 }
             }
         ];
