@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Poll {
+    pub id: String,
     pub title: String,
     pub owner_id: ObjectId,
     pub options: Vec<ObjectId>,
@@ -26,12 +27,12 @@ impl PollRepo {
         result
     }
 
-    pub async fn get(&self,poll_id: ObjectId) -> Result<Option<Document>,mongodb::error::Error>{
+    pub async fn get(&self,poll_id: &str) -> Result<Option<Document>,mongodb::error::Error>{
         println!("{:?}",poll_id);
         let pipeline = vec![
             doc! {
                 "$match" : {
-                    "_id": poll_id
+                    "id": poll_id
                 }
             },
             doc! {
