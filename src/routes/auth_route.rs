@@ -368,7 +368,7 @@ pub async fn finish_authentication(
         .same_site(SameSite::None)
         .secure(true)
         .path("/")
-        .max_age(Duration::days(7))
+        .max_age(Duration::days(1))
         .finish();
 
     return HttpResponse::Ok()

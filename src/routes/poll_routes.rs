@@ -99,7 +99,15 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
 
 #[actix_web::get("/{id}")]
 pub async fn get_poll(id: Path<String>,db:Data<DB>) -> impl Responder{
-    let poll_data = match db.polls.get(id.as_str()).await{
+    let poll_id = match ObjectId::parse_str(id.as_str()) {
+        Ok(id) => id,
+        Err(e) =>{
+            return HttpResponse::BadRequest()
+            .status(StatusCode::NOT_FOUND)
+            .body("Invalid poll id!");
+        }
+    };
+    let poll_data = match db.polls.get(poll_id).await{
         Ok(Some(poll)) => poll,
         Ok(None) => {
             return HttpResponse::BadRequest()
