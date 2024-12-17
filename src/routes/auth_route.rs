@@ -378,7 +378,7 @@ pub async fn finish_authentication(
 }
 
 #[actix_web::get("/auth/logout")]
-pub async fn logout_user() -> impl Responder{
+pub async fn logout_user() -> impl Responder {
     let cookie = Cookie::build("auth_token", "")
         .http_only(true)
         .same_site(SameSite::None)
@@ -396,6 +396,7 @@ pub fn init(cnf: &mut ServiceConfig) -> () {
     cnf.service(start_registration)
         .service(finish_registration)
         .service(start_authentication)
-        .service(finish_authentication).service(logout_user);
+        .service(finish_authentication)
+        .service(logout_user);
     ()
 }

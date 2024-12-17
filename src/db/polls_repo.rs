@@ -1,5 +1,11 @@
+use std::collections::HashSet;
+
 use futures::TryStreamExt;
-use mongodb::{bson::{doc, oid::ObjectId, Document}, results::InsertOneResult, Collection, Database};
+use mongodb::{
+    bson::{doc, oid::ObjectId, Document},
+    results::InsertOneResult,
+    Collection, Database,
+};
 use serde::{Deserialize, Serialize};
 
 use super::DB;
@@ -10,7 +16,7 @@ pub struct Poll {
     pub title: String,
     pub owner_id: ObjectId,
     pub options: Vec<ObjectId>,
-    pub is_open: bool
+    pub is_open: bool,
 }
 
 pub struct PollRepo {
@@ -30,8 +36,8 @@ impl PollRepo {
         result
     }
 
-    pub async fn get(&self,poll_id: &str) -> Result<Option<Document>,mongodb::error::Error>{
-        println!("{:?}",poll_id);
+    pub async fn get(&self, poll_id: &str) -> Result<Option<Document>, mongodb::error::Error> {
+        println!("{:?}", poll_id);
         let pipeline = vec![
             doc! {
                 "$match" : {
@@ -52,35 +58,156 @@ impl PollRepo {
                     "owner_id": 1,
                     "options": 1
                 }
-            }
+            },
         ];
         let mut cursor = self.collection.aggregate(pipeline).await?;
-        
+
         // Use try_next() to get the first result
         let result = cursor.try_next().await?;
 
         Ok(result)
     }
 
-    pub async fn close_poll(&self,poll_id: &str) -> Result<bool,mongodb::error::Error>{
+    pub async fn is_owner(&self, poll_id: &str, user_id: &str) -> bool {
+        match self.get(poll_id).await {
+            Ok(Some(poll)) => {
+                if let Some(owner_id) = poll.get("owner_id") {
+                    return owner_id.as_str() == Some(user_id);
+                }
+                false
+            }
+            Ok(None) => false,
+            Err(_) => false,
+        }
+    }
+
+    pub async fn add_vote(
+        &self,
+        poll_id: &str,
+        user_id: ObjectId,
+        option_id: ObjectId,
+        db: &DB,
+    ) -> Result<bool, mongodb::error::Error> {
+        // 1. Fetch poll details
+        let poll_doc = match self.get(poll_id).await? {
+            Some(poll) => poll,
+            None => return Ok(false), // Poll not found
+        };
+
+        // 2. Check poll status
+        let is_open = poll_doc.get_bool("is_open").unwrap_or(false);
+        if !is_open {
+            return Ok(false); // Poll is closed
+        }
+
+        // 3. Validate if option belongs to this poll
+        let poll_options: Vec<ObjectId> = poll_doc
+            .get_array("options")
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter_map(|opt| opt.as_object_id().clone())
+            .collect();
+
+        if !poll_options.contains(&option_id) {
+            return Ok(false); // Option not part of this poll
+        }
+
+        // 4. Check if user has already voted in this poll
+        let option_collection = db.options.collection.clone();
+
+        // Find the specific option document
+        let option_filter = doc! {"_id": option_id};
+        let option_doc = match option_collection.find_one(option_filter.clone()).await? {
+            Some(doc) => doc,
+            None => return Ok(false), // Option not found
+        };
+
+        // 5. Check if user has already voted
+        let current_voters = option_doc.voters;
+
+        if current_voters.contains(&user_id) {
+            return Ok(false); // User has already voted
+        }
+
+        // 6. Prepare update operations
+        // Atomically update both the option document
+        let update_option = doc! {
+            "$inc": { "votes_count": 1 },
+            "$push": { "voters": user_id }
+        };
+
+        // Begin a multi-document transaction for consistency
+        let mut session = db.client.start_session().await?;
+        session.start_transaction().await?;
+
+        let update_result = match option_collection
+            .update_one(option_filter, update_option)
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                session.abort_transaction().await?;
+                return Err(e);
+            }
+        };
+
+        // 7. Verify update
+        if update_result.modified_count != 1 {
+            session.abort_transaction().await?;
+            return Ok(false);
+        }
+
+        // 8. Commit transaction
+        session.commit_transaction().await?;
+
+        Ok(true)
+    }
+
+    pub async fn close_poll(
+        &self,
+        poll_id: &str,
+        user_id: ObjectId,
+    ) -> Result<bool, mongodb::error::Error> {
+        if !self.is_owner(poll_id, &user_id.to_string()).await {
+            return Ok(false);
+        }
         let filter = doc! {"id":poll_id};
-        let result = match self.collection.update_one(filter, doc!{"status": false}).await {
+        let result = match self
+            .collection
+            .update_one(filter, doc! {"status": false})
+            .await
+        {
             Ok(_document) => true,
-            Err(e) => {return Err(e);}
+            Err(e) => {
+                return Err(e);
+            }
         };
         Ok(result)
     }
 
-    pub async fn reset_poll(&self,poll_id: &str,db: &DB) -> Result<bool,mongodb::error::Error>{
+    pub async fn reset_poll(
+        &self,
+        poll_id: &str,
+        db: &DB,
+        user_id: ObjectId,
+    ) -> Result<bool, mongodb::error::Error> {
+        if !self.is_owner(poll_id, &user_id.to_string()).await {
+            return Ok(false);
+        }
         let poll_match = match self.get(poll_id).await? {
             Some(poll) => poll,
             None => {
                 return Ok(false);
             }
         };
-        let options_ids: Vec<ObjectId> = poll_match.get_array("options").unwrap_or(&Vec::new()).iter().filter_map(|option| option.as_object_id().clone()).collect();
+        let options_ids: Vec<ObjectId> = poll_match
+            .get_array("options")
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter_map(|option| option.as_object_id().clone())
+            .collect();
 
-        for option_id in options_ids{
+        for option_id in options_ids {
             let filter = doc! {"_id": option_id};
             db.options.delete(filter).await?;
         }

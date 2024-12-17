@@ -47,6 +47,20 @@ impl UserRepo {
         Ok(result)
     }
 
+    pub async fn get_user_id(
+        &self,
+        username: &str,
+    ) -> Result<Option<ObjectId>, mongodb::error::Error> {
+        let filter = doc! {"username": username};
+        let result = match self.collection.find_one(filter).await? {
+            Some(user) => user.id,
+            None => {
+                return Ok(None);
+            }
+        };
+        Ok(result)
+    }
+
     pub async fn insert(&self, new_user: User) -> Result<InsertOneResult, mongodb::error::Error> {
         let result = self.collection.insert_one(new_user).await;
         result
