@@ -124,12 +124,25 @@ pub async fn get_poll(id: Path<String>,db:Data<DB>) -> impl Responder{
 #[actix_web::get("/{id}/close")]
 pub async fn close_poll(id: Path<String>,db:Data<DB>) -> impl Responder{
     let _close_poll = match db.polls.close_poll(id.as_str()).await {
-        Ok(closed) => {
+        Ok(_closed) => {
             return HttpResponse::Ok().status(StatusCode::ACCEPTED).json("Poll closed!");
         },
         Err(e) =>{
             eprint!("Error deleting poll {:?}",e);
             return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Failed closing poll, try again later!");
+        }
+    };
+}
+
+#[actix_web::get("/{id}/reset")]
+pub async fn reset_poll(id: Path<String>,db:Data<DB>) -> impl Responder{
+    let _reset_poll = match db.clone().polls.reset_poll(id.as_str(), &db.into_inner()).await {
+        Ok(_reset) => {
+            return HttpResponse::Ok().status(StatusCode::ACCEPTED).json("Poll reset!");
+        },
+        Err(e) =>{
+            eprint!("Error resetting poll {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Failed resetting poll, try again later!");
         }
     };
 }

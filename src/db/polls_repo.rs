@@ -2,6 +2,8 @@ use futures::TryStreamExt;
 use mongodb::{bson::{doc, oid::ObjectId, Document}, results::InsertOneResult, Collection, Database};
 use serde::{Deserialize, Serialize};
 
+use super::DB;
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Poll {
     pub id: String,
@@ -66,6 +68,36 @@ impl PollRepo {
             Ok(_document) => true,
             Err(e) => {return Err(e);}
         };
+        Ok(result)
+    }
+
+    pub async fn reset_poll(&self,poll_id: &str,db: &DB) -> Result<bool,mongodb::error::Error>{
+        let poll_match = match self.get(poll_id).await? {
+            Some(poll) => poll,
+            None => {
+                return Ok(false);
+            }
+        };
+        let options_ids: Vec<ObjectId> = poll_match.get_array("options").unwrap_or(&Vec::new()).iter().filter_map(|option| option.as_object_id().clone()).collect();
+
+        for option_id in options_ids{
+            let filter = doc! {"_id": option_id};
+            db.options.delete(filter).await?;
+        }
+
+        let filter = doc! {"id": poll_id};
+        let update = doc! {
+            "$set": {
+                "options": Vec::<ObjectId>::new(),
+                "is_open": true
+            }
+        };
+
+        let result = match self.collection.update_one(filter, update).await {
+            Ok(_) => true,
+            Err(e) => return Err(e),
+        };
+
         Ok(result)
     }
 }
