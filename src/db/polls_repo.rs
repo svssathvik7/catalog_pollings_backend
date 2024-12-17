@@ -8,6 +8,7 @@ pub struct Poll {
     pub title: String,
     pub owner_id: ObjectId,
     pub options: Vec<ObjectId>,
+    pub is_open: bool
 }
 
 pub struct PollRepo {
@@ -56,6 +57,15 @@ impl PollRepo {
         // Use try_next() to get the first result
         let result = cursor.try_next().await?;
 
+        Ok(result)
+    }
+
+    pub async fn close_poll(&self,poll_id: &str) -> Result<bool,mongodb::error::Error>{
+        let filter = doc! {"id":poll_id};
+        let result = match self.collection.update_one(filter, doc!{"status": false}).await {
+            Ok(_document) => true,
+            Err(e) => {return Err(e);}
+        };
         Ok(result)
     }
 }

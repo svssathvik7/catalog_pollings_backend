@@ -82,6 +82,7 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
         title,
         options: option_ids,
         owner_id,
+        is_open: true
     };
     let _poll_insert_result = match db.polls.insert(new_poll).await {
         Ok(inserted_poll) => inserted_poll,
@@ -120,7 +121,20 @@ pub async fn get_poll(id: Path<String>,db:Data<DB>) -> impl Responder{
     .json(poll_data)
 }
 
+#[actix_web::get("/{id}/close")]
+pub async fn close_poll(id: Path<String>,db:Data<DB>) -> impl Responder{
+    let _close_poll = match db.polls.close_poll(id.as_str()).await {
+        Ok(closed) => {
+            return HttpResponse::Ok().status(StatusCode::ACCEPTED).json("Poll closed!");
+        },
+        Err(e) =>{
+            eprint!("Error deleting poll {:?}",e);
+            return HttpResponse::InternalServerError().status(StatusCode::INTERNAL_SERVER_ERROR).json("Failed closing poll, try again later!");
+        }
+    };
+}
+
 pub fn init(cnf: &mut ServiceConfig) {
-    cnf.service(create_poll).service(get_poll);
+    cnf.service(create_poll).service(get_poll).service(close_poll);
     ()
 }
