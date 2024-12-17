@@ -216,9 +216,9 @@ pub async fn reset_poll(
 
 #[actix_web::post("/{id}/vote")]
 pub async fn cast_vote(
-    db: Data<DB>, 
-    id: Path<String>, 
-    Json(req): Json<HashMap<String, String>>
+    db: Data<DB>,
+    id: Path<String>,
+    Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
     // 1. Extract and validate username
     let username = match req.get("username") {
@@ -242,7 +242,7 @@ pub async fn cast_vote(
                         .json("Invalid option ID format!");
                 }
             }
-        },
+        }
         None => {
             return HttpResponse::BadRequest()
                 .status(StatusCode::BAD_REQUEST)
@@ -263,12 +263,12 @@ pub async fn cast_vote(
                         .json("User ID not found!");
                 }
             }
-        },
+        }
         Ok(None) => {
             return HttpResponse::Unauthorized()
                 .status(StatusCode::UNAUTHORIZED)
                 .json("User not found!");
-        },
+        }
         Err(_) => {
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -278,16 +278,12 @@ pub async fn cast_vote(
 
     // 4. Attempt to cast vote
     match db.polls.add_vote(&id, user, option_id, &db).await {
-        Ok(true) => {
-            HttpResponse::Ok()
-                .status(StatusCode::ACCEPTED)
-                .json("Vote recorded successfully!")
-        },
-        Ok(false) => {
-            HttpResponse::BadRequest()
-                .status(StatusCode::BAD_REQUEST)
-                .json("Unable to cast vote. Poll might be closed or you've already voted.")
-        },
+        Ok(true) => HttpResponse::Ok()
+            .status(StatusCode::ACCEPTED)
+            .json("Vote recorded successfully!"),
+        Ok(false) => HttpResponse::BadRequest()
+            .status(StatusCode::BAD_REQUEST)
+            .json("Unable to cast vote. Poll might be closed or you've already voted."),
         Err(e) => {
             eprintln!("Vote casting error: {:?}", e);
             HttpResponse::InternalServerError()

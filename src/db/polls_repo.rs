@@ -185,6 +185,10 @@ impl PollRepo {
         Ok(result)
     }
 
+    // get live polls i.e status: true with decreasing votes count way, and we get page number, polls per page params to ensure pagination 
+
+    // get closed polls i.e status: false with decreasing votes count way, and we get page number, polls per page params to ensure pagination 
+
     pub async fn reset_poll(
         &self,
         poll_id: &str,
@@ -227,4 +231,200 @@ impl PollRepo {
 
         Ok(result)
     }
+
+    pub async fn get_live_polls(
+        &self, 
+        page: u64, 
+        per_page: u64
+    ) -> Result<Vec<Document>, mongodb::error::Error> {
+        // Validate pagination parameters
+        let page = page.max(1);
+        let per_page = per_page.clamp(1, 10);
+        
+        // Calculate skip for pagination
+        let skip = (page - 1) * per_page;
+
+        let pipeline = vec![
+            // Match only open polls
+            doc! {
+                "$match": {
+                    "is_open": true
+                }
+            },
+            // Lookup options with detailed information
+            doc! {
+                "$lookup": {
+                    "from": "options",
+                    "localField": "options",
+                    "foreignField": "_id",
+                    "as": "options"
+                }
+            },
+            // Lookup poll owner details
+            doc! {
+                "$lookup": {
+                    "from": "users",
+                    "localField": "owner_id",
+                    "foreignField": "_id",
+                    "as": "owner"
+                }
+            },
+            // Unwind owner (since we expect one owner)
+            doc! {
+                "$unwind": {
+                    "path": "$owner",
+                    "preserveNullAndEmptyArrays": true
+                }
+            },
+            // Add computed fields
+            doc! {
+                "$addFields": {
+                    "total_votes": {
+                        "$sum": "$option_details.votes_count"
+                    },
+                    "owner_username": "$owner.username"
+                }
+            },
+            // Sort by total votes in descending order
+            doc! {
+                "$sort": {
+                    "total_votes": -1
+                }
+            },
+            // Pagination
+            doc! {
+                "$skip": skip as i64
+            },
+            doc! {
+                "$limit": per_page as i64
+            },
+            // Final projection to control returned fields
+            doc! {
+                "$project": {
+                    "id": 1,
+                    "title": 1,
+                    "total_votes": 1,
+                    "is_open": 1,
+                    "owner_username": 1,
+                    "option_details": {
+                        "_id": 1,
+                        "text": 1,
+                        "votes_count": 1
+                    }
+                }
+            }
+        ];
+
+        let mut cursor = self.collection.aggregate(pipeline).await?;
+        let mut results = Vec::new();
+
+        while let Some(doc) = cursor.try_next().await? {
+            results.push(doc);
+        }
+
+        Ok(results)
+    }
+
+    pub async fn get_closed_polls(
+        &self, 
+        page: u64, 
+        per_page: u64
+    ) -> Result<Vec<Document>, mongodb::error::Error> {
+        // Validate pagination parameters
+        let page = page.max(1);
+        let per_page = per_page.clamp(1, 100);
+        
+        // Calculate skip for pagination
+        let skip = (page - 1) * per_page;
+
+        let pipeline = vec![
+            // Match only closed polls
+            doc! {
+                "$match": {
+                    "is_open": false
+                }
+            },
+            // Lookup options with detailed information
+            doc! {
+                "$lookup": {
+                    "from": "options",
+                    "localField": "options",
+                    "foreignField": "_id",
+                    "as": "option_details"
+                }
+            },
+            // Lookup poll owner details
+            doc! {
+                "$lookup": {
+                    "from": "users",
+                    "localField": "owner_id",
+                    "foreignField": "_id",
+                    "as": "owner"
+                }
+            },
+            // Unwind owner (since we expect one owner)
+            doc! {
+                "$unwind": {
+                    "path": "$owner",
+                    "preserveNullAndEmptyArrays": true
+                }
+            },
+            // Add computed fields
+            doc! {
+                "$addFields": {
+                    "total_votes": {
+                        "$sum": "$option_details.votes_count"
+                    },
+                    "owner_username": "$owner.username"
+                }
+            },
+            // Sort by total votes in descending order
+            doc! {
+                "$sort": {
+                    "total_votes": -1
+                }
+            },
+            // Pagination
+            doc! {
+                "$skip": skip as i32
+            },
+            doc! {
+                "$limit": per_page as i32
+            },
+            // Final projection to control returned fields
+            doc! {
+                "$project": {
+                    "id": 1,
+                    "title": 1,
+                    "total_votes": 1,
+                    "is_open": 1,
+                    "owner_username": 1,
+                    "option_details": {
+                        "_id": 1,
+                        "text": 1,
+                        "votes_count": 1
+                    }
+                }
+            }
+        ];
+
+        let mut cursor = self.collection.aggregate(pipeline).await?;
+        let mut results = Vec::new();
+
+        while let Some(doc) = cursor.try_next().await? {
+            results.push(doc);
+        }
+
+        Ok(results)
+    }
+
+    // Bonus: Count method for pagination metadata
+    pub async fn count_live_polls(&self) -> Result<u64, mongodb::error::Error> {
+        self.collection.count_documents(doc! {"is_open": true}).await
+    }
+
+    pub async fn count_closed_polls(&self) -> Result<u64, mongodb::error::Error> {
+        self.collection.count_documents(doc! {"is_open": false}).await
+    }
+
 }
