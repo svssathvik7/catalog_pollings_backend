@@ -350,7 +350,7 @@ impl PollRepo {
                     "from": "options",
                     "localField": "options",
                     "foreignField": "_id",
-                    "as": "option_details"
+                    "as": "options"
                 }
             },
             // Lookup poll owner details
@@ -418,7 +418,6 @@ impl PollRepo {
         Ok(results)
     }
 
-    // Bonus: Count method for pagination metadata
     pub async fn count_live_polls(&self) -> Result<u64, mongodb::error::Error> {
         self.collection.count_documents(doc! {"is_open": true}).await
     }

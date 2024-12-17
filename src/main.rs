@@ -6,7 +6,7 @@ use actix_web::{
 };
 use db::DB;
 use middlewares::authenticate::authenticate_user;
-use routes::{auth_route, poll_routes};
+use routes::{auth_routes, general_routes, poll_routes};
 use utils::jwt::JWT;
 use webauthn::config_webauthn;
 pub mod db;
@@ -15,10 +15,6 @@ pub mod models;
 pub mod routes;
 pub mod utils;
 pub mod webauthn;
-#[actix_web::get("/")]
-async fn home() -> HttpResponse {
-    HttpResponse::Ok().json("Welcome to polling app backend")
-}
 
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
@@ -27,7 +23,6 @@ async fn main() -> Result<(), std::io::Error> {
     let jwt = Data::new(JWT::init());
     HttpServer::new(move || {
         App::new()
-            .service(home)
             .wrap(
                 Cors::default()
                     .allow_any_header()
@@ -35,7 +30,8 @@ async fn main() -> Result<(), std::io::Error> {
                     .allowed_origin("http://localhost:3000")
                     .supports_credentials(),
             )
-            .service(scope("/auth").configure(auth_route::init))
+            .service(scope("/").configure(general_routes::init))
+            .service(scope("/auth").configure(auth_routes::init))
             .service(
                 scope("")
                     .wrap(from_fn(authenticate_user))
