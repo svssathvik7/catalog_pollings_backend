@@ -377,7 +377,7 @@ pub async fn finish_authentication(
         .json("User logged in!");
 }
 
-#[actix_web::get("/auth/logout")]
+#[actix_web::get("/logout")]
 pub async fn logout_user() -> impl Responder {
     let cookie = Cookie::build("auth_token", "")
         .http_only(true)

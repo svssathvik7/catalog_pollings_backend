@@ -280,7 +280,7 @@ impl PollRepo {
             doc! {
                 "$addFields": {
                     "total_votes": {
-                        "$sum": "$option_details.votes_count"
+                        "$sum": "$option.votes_count"
                     },
                     "owner_username": "$owner.username"
                 }
@@ -306,7 +306,7 @@ impl PollRepo {
                     "total_votes": 1,
                     "is_open": 1,
                     "owner_username": 1,
-                    "option_details": {
+                    "options": {
                         "_id": 1,
                         "text": 1,
                         "votes_count": 1
@@ -373,7 +373,7 @@ impl PollRepo {
             doc! {
                 "$addFields": {
                     "total_votes": {
-                        "$sum": "$option_details.votes_count"
+                        "$sum": "$option.votes_count"
                     },
                     "owner_username": "$owner.username"
                 }
@@ -399,7 +399,7 @@ impl PollRepo {
                     "total_votes": 1,
                     "is_open": 1,
                     "owner_username": 1,
-                    "option_details": {
+                    "option": {
                         "_id": 1,
                         "text": 1,
                         "votes_count": 1

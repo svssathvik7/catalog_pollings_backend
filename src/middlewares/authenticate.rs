@@ -8,6 +8,7 @@ use actix_web::{
     HttpResponse,
 };
 use log::info;
+use serde_json::json;
 
 pub async fn authenticate_user(
     req: ServiceRequest,
@@ -27,7 +28,7 @@ pub async fn authenticate_user(
             return Ok(req.into_response(
                 HttpResponse::Unauthorized()
                     .status(StatusCode::FORBIDDEN)
-                    .json("Invalid or expired token!"),
+                    .json(json!({"msg":"Invalid or expired token!","isAuthenticated":false})),
             ));
         }
     }
@@ -35,6 +36,6 @@ pub async fn authenticate_user(
     return Ok(req.into_response(
         HttpResponse::BadRequest()
             .status(StatusCode::BAD_REQUEST)
-            .body("Missing auth token cookie"),
+            .json(json!({"msg":"Missing auth token cookie!","isAuthenticated":false})),
     ));
 }

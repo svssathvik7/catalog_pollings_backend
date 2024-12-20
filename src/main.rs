@@ -30,7 +30,7 @@ async fn main() -> Result<(), std::io::Error> {
                     .allowed_origin("http://localhost:3000")
                     .supports_credentials(),
             )
-            .service(scope("/").configure(general_routes::init))
+            .service(scope("").configure(general_routes::init))
             .service(scope("/auth").configure(auth_routes::init))
             .service(
                 scope("")
