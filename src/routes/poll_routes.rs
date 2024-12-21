@@ -11,7 +11,6 @@ use nanoid::nanoid;
 use crate::{
     db::{options_repo::Option, polls_repo::Poll, DB},
     models::poll_api_model::NewPollRequest,
-    utils::jwt::JWT,
 };
 
 #[actix_web::post("/new")]
