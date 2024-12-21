@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use mongodb::{
     bson::{doc, oid::ObjectId, Document},
@@ -15,6 +16,10 @@ pub struct Poll {
     pub owner_id: ObjectId,
     pub options: Vec<ObjectId>,
     pub is_open: bool,
+    #[serde(default = "Utc::now")]
+    pub created_at: DateTime<Utc>,
+    #[serde(default = "Utc::now")]
+    pub updated_at: DateTime<Utc>,
 }
 
 pub struct PollRepo {

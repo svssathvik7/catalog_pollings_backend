@@ -5,6 +5,7 @@ use actix_web::{
     web::{Data, Json, Path, ServiceConfig},
     HttpResponse, Responder,
 };
+use chrono::Utc;
 use mongodb::bson::{doc, oid::ObjectId};
 use nanoid::nanoid;
 
@@ -80,6 +81,8 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
     };
     let new_poll = Poll {
         id: nanoid!(),
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
         title,
         options: option_ids,
         owner_id,
