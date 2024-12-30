@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use mongodb::{
-    bson::{doc, oid::ObjectId, Document},
+    bson::{self, doc, oid::ObjectId, Document},
     results::InsertOneResult,
     Collection, Database,
 };
@@ -27,7 +27,12 @@ pub struct PollRepo {
     pub collection: Collection<Poll>,
 }
 
-pub struct PollResponse {}
+#[derive(Serialize,Deserialize,Debug)]
+pub struct PollResponse {
+    pub poll: Option<Poll>,
+    #[serde(rename="camelCase")]
+    pub has_voted: bool
+}
 
 impl PollRepo {
     pub async fn init(db: &Database) -> Self {
@@ -46,7 +51,7 @@ impl PollRepo {
         &self,
         poll_id: &str,
         username: &str,
-    ) -> Result<Option<Document>, mongodb::error::Error> {
+    ) -> Result<PollResponse, mongodb::error::Error> {
         println!("{:?}", poll_id);
         let pipeline = vec![
             doc! {
@@ -72,24 +77,40 @@ impl PollRepo {
         ];
         let mut cursor = self.collection.aggregate(pipeline).await?;
 
-        // Use try_next() to get the first result
-        let result = cursor.try_next().await?;
+        if let Some(doc) = cursor.try_next().await? {
+            // Deserialize the document into a Poll struct
+            let poll: Poll = bson::from_document(doc)?;
+    
+            // Check if the username is in the voters list
+            let has_voted = poll.voters.iter().any(|voter| voter == username);
+    
+            let poll_response = PollResponse {
+                poll: Some(poll),
+                has_voted,
+            };
+    
+            Ok(poll_response)
+        } else {
 
-        Ok(result)
+            Ok(PollResponse{poll:None,has_voted: false})
+        }
     }
 
     pub async fn is_owner(&self, poll_id: &str, username: &str) -> bool {
         match self.get(poll_id, username).await {
-            Ok(Some(poll)) => {
-                if let Some(owner_id) = poll.get("owner_id") {
-                    return owner_id.as_str() == Some(username);
-                }
-                false
+            Ok(poll_response) => {
+                let poll = match poll_response.poll{
+                    Some(poll) => poll,
+                    None => {
+                        return false;
+                    }
+                };
+                return poll.owner_id == username;
             }
-            Ok(None) => false,
             Err(_) => false,
         }
     }
+    
 
     pub async fn add_vote(
         &self,
@@ -101,13 +122,20 @@ impl PollRepo {
         let mut session = db.client.start_session().await.unwrap();
         session.start_transaction().await.unwrap();
         // 1. Fetch poll details
-        let poll_doc = match self.get(poll_id, &username).await? {
-            Some(poll) => poll,
-            None => return Ok(false), // Poll not found
+        let poll_doc = match self.get(poll_id, &username).await {
+            Ok(poll_response) => {
+                match poll_response.poll {
+                    Some(poll) => poll,
+                    None => {return Ok(false);}
+                }
+            },
+            Err(e)=>{
+                return Ok(false);
+            }
         };
 
         // 2. Check poll status
-        let is_open = poll_doc.get_bool("is_open").unwrap_or(false);
+        let is_open = poll_doc.is_open;
         if !is_open {
             session.abort_transaction().await.unwrap();
             return Ok(false); // Poll is closed
@@ -115,11 +143,7 @@ impl PollRepo {
 
         // 3. Validate if option belongs to this poll
         let poll_options: Vec<ObjectId> = poll_doc
-            .get_array("options")
-            .unwrap_or(&Vec::new())
-            .iter()
-            .filter_map(|opt| opt.as_object_id().clone())
-            .collect();
+            .options;
 
         if !poll_options.contains(&option_id) {
             session.abort_transaction().await.unwrap();
@@ -127,12 +151,7 @@ impl PollRepo {
         }
 
         // 4. Check if user has already voted in this poll
-        let voters: Vec<String> = poll_doc
-            .get_array("voters")
-            .unwrap_or(&Vec::new())
-            .iter()
-            .filter_map(|v| v.as_str().map(String::from))
-            .collect();
+        let voters: Vec<String> = poll_doc.voters;
 
         if voters.contains(&username) {
             session.abort_transaction().await.unwrap();
@@ -186,10 +205,6 @@ impl PollRepo {
         Ok(result)
     }
 
-    // get live polls i.e status: true with decreasing votes count way, and we get page number, polls per page params to ensure pagination
-
-    // get closed polls i.e status: false with decreasing votes count way, and we get page number, polls per page params to ensure pagination
-
     pub async fn reset_poll(
         &self,
         poll_id: &str,
@@ -199,18 +214,21 @@ impl PollRepo {
         if !self.is_owner(poll_id, username).await {
             return Ok(false);
         }
-        let poll_match = match self.get(poll_id, username).await? {
-            Some(poll) => poll,
-            None => {
+        let poll_match = match self.get(poll_id, username).await {
+            Ok(poll_response) => {
+                match poll_response.poll{
+                    Some(poll) => poll,
+                    None => {
+                        return Ok(false);
+                    }
+                }
+            },
+            Err(e) => {
                 return Ok(false);
             }
         };
         let options_ids: Vec<ObjectId> = poll_match
-            .get_array("options")
-            .unwrap_or(&Vec::new())
-            .iter()
-            .filter_map(|option| option.as_object_id().clone())
-            .collect();
+            .options;
 
         for option_id in options_ids {
             let filter = doc! {"_id": option_id};

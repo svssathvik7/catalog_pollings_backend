@@ -82,12 +82,14 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
 #[actix_web::post("/{id}")]
 pub async fn get_poll(id: Path<String>, db: Data<DB>, Json(username): Json<String>) -> impl Responder {
     let poll_data = match db.polls.get(id.as_str(),&username).await {
-        Ok(Some(poll)) => poll,
-        Ok(None) => {
-            return HttpResponse::BadRequest()
+        Ok(poll_response) => match poll_response.poll {
+            Some(poll) => poll,
+            None => {
+                return HttpResponse::BadRequest()
                 .status(StatusCode::NOT_FOUND)
                 .body("No poll found!");
-        }
+            }
+        },
         Err(e) => {
             eprint!("Error finding poll {:?}", e);
             return HttpResponse::InternalServerError()
