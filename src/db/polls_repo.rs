@@ -13,7 +13,7 @@ use super::DB;
 pub struct Poll {
     pub id: String,
     pub title: String,
-    pub owner_id: ObjectId,
+    pub owner_id: String,
     pub options: Vec<ObjectId>,
     pub is_open: bool,
     #[serde(default = "Utc::now")]
@@ -71,11 +71,11 @@ impl PollRepo {
         Ok(result)
     }
 
-    pub async fn is_owner(&self, poll_id: &str, user_id: &str) -> bool {
+    pub async fn is_owner(&self, poll_id: &str, username: &str) -> bool {
         match self.get(poll_id).await {
             Ok(Some(poll)) => {
                 if let Some(owner_id) = poll.get("owner_id") {
-                    return owner_id.as_str() == Some(user_id);
+                    return owner_id.as_str() == Some(username);
                 }
                 false
             }
@@ -87,7 +87,7 @@ impl PollRepo {
     pub async fn add_vote(
         &self,
         poll_id: &str,
-        user_id: ObjectId,
+        username: String,
         option_id: ObjectId,
         db: &DB,
     ) -> Result<bool, mongodb::error::Error> {
@@ -128,7 +128,7 @@ impl PollRepo {
         // 5. Check if user has already voted
         let current_voters = option_doc.voters;
 
-        if current_voters.contains(&user_id) {
+        if current_voters.contains(&username) {
             return Ok(false); // User has already voted
         }
 
@@ -136,7 +136,7 @@ impl PollRepo {
         // Atomically update both the option document
         let update_option = doc! {
             "$inc": { "votes_count": 1 },
-            "$push": { "voters": user_id }
+            "$push": { "voters": username }
         };
 
         // Begin a multi-document transaction for consistency
@@ -169,9 +169,9 @@ impl PollRepo {
     pub async fn close_poll(
         &self,
         poll_id: &str,
-        user_id: ObjectId,
+        username: &str,
     ) -> Result<bool, mongodb::error::Error> {
-        if !self.is_owner(poll_id, &user_id.to_string()).await {
+        if !self.is_owner(poll_id, username).await {
             return Ok(false);
         }
         let filter = doc! {"id":poll_id};
@@ -196,9 +196,9 @@ impl PollRepo {
         &self,
         poll_id: &str,
         db: &DB,
-        user_id: ObjectId,
+        username: &str,
     ) -> Result<bool, mongodb::error::Error> {
-        if !self.is_owner(poll_id, &user_id.to_string()).await {
+        if !self.is_owner(poll_id, username).await {
             return Ok(false);
         }
         let poll_match = match self.get(poll_id).await? {
@@ -565,5 +565,4 @@ impl PollRepo {
     pub async fn count_closed_polls(&self) -> Result<u64, mongodb::error::Error> {
         self.collection.count_documents(doc! {"is_open": false}).await
     }
-
 }

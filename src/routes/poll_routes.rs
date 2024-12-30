@@ -54,38 +54,13 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
                 }
             };
     }
-    let filter = doc! {"username": poll_data.ownername};
-    let owner_id = match db.users.query_by_filter(filter).await {
-        Ok(Some(owner_match)) => {
-            if let Some(id) = owner_match.id {
-                id
-            } else {
-                session.abort_transaction().await.unwrap();
-                return HttpResponse::InternalServerError()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body("Failed fetching owner id!");
-            }
-        }
-        Ok(None) => {
-            return HttpResponse::Forbidden()
-                .status(StatusCode::FORBIDDEN)
-                .body("Login to create polls!");
-        }
-        Err(e) => {
-            eprint!("Error finding owner id {:?}", e);
-            session.abort_transaction().await.unwrap();
-            return HttpResponse::Forbidden()
-                .status(StatusCode::FORBIDDEN)
-                .body("Login to create polls!");
-        }
-    };
     let new_poll = Poll {
         id: nanoid!(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
         title,
         options: option_ids,
-        owner_id,
+        owner_id: poll_data.ownername,
         is_open: true,
     };
     let _poll_insert_result = match db.polls.insert(new_poll).await {
@@ -129,9 +104,9 @@ pub async fn get_poll(id: Path<String>, db: Data<DB>) -> impl Responder {
 pub async fn close_poll(
     id: Path<String>,
     db: Data<DB>,
-    req: Json<HashMap<String, String>>,
+    Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
-    let username = match req.0.get("username") {
+    let username = match req.get("username") {
         Some(username) => username.clone(),
         None => {
             return HttpResponse::BadRequest()
@@ -139,21 +114,7 @@ pub async fn close_poll(
                 .json("Owner username required!");
         }
     };
-    let user_id = match db.users.get_user_id(username.as_str()).await {
-        Ok(Some(id)) => id,
-        Ok(None) => {
-            return HttpResponse::BadRequest()
-                .status(StatusCode::FORBIDDEN)
-                .json("No such user exists!");
-        }
-        Err(e) => {
-            eprint!("Error fetching owner info {:?}", e);
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Error closing poll! Try again later!!");
-        }
-    };
-    let _close_poll = match db.polls.close_poll(id.as_str(), user_id).await {
+    let _close_poll = match db.polls.close_poll(id.as_str(), &username).await {
         Ok(_closed) => {
             return HttpResponse::Ok()
                 .status(StatusCode::ACCEPTED)
@@ -172,9 +133,9 @@ pub async fn close_poll(
 pub async fn reset_poll(
     id: Path<String>,
     db: Data<DB>,
-    req: Json<HashMap<String, String>>,
+    Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
-    let username = match req.0.get("username") {
+    let username = match req.get("username") {
         Some(username) => username.clone(),
         None => {
             return HttpResponse::BadRequest()
@@ -182,24 +143,10 @@ pub async fn reset_poll(
                 .json("Owner username required!");
         }
     };
-    let user_id = match db.users.get_user_id(username.as_str()).await {
-        Ok(Some(id)) => id,
-        Ok(None) => {
-            return HttpResponse::BadRequest()
-                .status(StatusCode::FORBIDDEN)
-                .json("No such user exists!");
-        }
-        Err(e) => {
-            eprint!("Error fetching owner info {:?}", e);
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Error closing poll! Try again later!!");
-        }
-    };
     let _reset_poll = match db
         .clone()
         .polls
-        .reset_poll(id.as_str(), &db.into_inner(), user_id)
+        .reset_poll(id.as_str(), &db.into_inner(), &username)
         .await
     {
         Ok(_reset) => {
@@ -252,34 +199,8 @@ pub async fn cast_vote(
         }
     };
 
-    // 3. Find user to get user ID
-    let user_filter = doc! {"username": &username};
-    let user = match db.users.query_by_filter(user_filter).await {
-        Ok(Some(user)) => {
-            // Extract user's ObjectId
-            match user.id {
-                Some(user_id) => user_id,
-                None => {
-                    return HttpResponse::InternalServerError()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .json("User ID not found!");
-                }
-            }
-        }
-        Ok(None) => {
-            return HttpResponse::Unauthorized()
-                .status(StatusCode::UNAUTHORIZED)
-                .json("User not found!");
-        }
-        Err(_) => {
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Error finding user!");
-        }
-    };
-
     // 4. Attempt to cast vote
-    match db.polls.add_vote(&id, user, option_id, &db).await {
+    match db.polls.add_vote(&id, username, option_id, &db).await {
         Ok(true) => HttpResponse::Ok()
             .status(StatusCode::ACCEPTED)
             .json("Vote recorded successfully!"),

@@ -31,7 +31,7 @@ pub async fn start_registration(
         Ok(Some(_user)) => {
             return HttpResponse::BadRequest()
                 .status(StatusCode::BAD_REQUEST)
-                .json("User does already exist!");
+                .json("Username already exist!");
         }
         Ok(None) => Uuid::new_v4(),
         Err(e) => {
@@ -368,7 +368,7 @@ pub async fn finish_authentication(
         .same_site(SameSite::None)
         .secure(true)
         .path("/")
-        .max_age(Duration::days(1))
+        .max_age(Duration::hours(1))
         .finish();
 
     return HttpResponse::Ok()
