@@ -32,8 +32,7 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
     for option in options {
         let new_option = Option {
             text: option.text,
-            votes_count: 0,
-            voters: Vec::new(),
+            votes_count: 0
         };
         option_inserted = option_inserted
             && match db.options.insert(new_option).await {
@@ -62,6 +61,7 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
         options: option_ids,
         owner_id: poll_data.ownername,
         is_open: true,
+        voters: Vec::new()
     };
     let _poll_insert_result = match db.polls.insert(new_poll).await {
         Ok(inserted_poll) => inserted_poll,

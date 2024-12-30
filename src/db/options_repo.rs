@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 pub struct Option {
     pub text: String,
     pub votes_count: u64,
-    pub voters: Vec<String>,
 }
 
 pub struct OptionRepo {

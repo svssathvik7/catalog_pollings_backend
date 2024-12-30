@@ -16,6 +16,7 @@ pub struct Poll {
     pub owner_id: String,
     pub options: Vec<ObjectId>,
     pub is_open: bool,
+    pub voters: Vec<String>,
     #[serde(default = "Utc::now")]
     pub created_at: DateTime<Utc>,
     #[serde(default = "Utc::now")]
@@ -26,9 +27,7 @@ pub struct PollRepo {
     pub collection: Collection<Poll>,
 }
 
-pub struct PollResponse{
-
-}
+pub struct PollResponse {}
 
 impl PollRepo {
     pub async fn init(db: &Database) -> Self {
@@ -43,7 +42,11 @@ impl PollRepo {
         result
     }
 
-    pub async fn get(&self, poll_id: &str, username: &str) -> Result<Option<Document>, mongodb::error::Error> {
+    pub async fn get(
+        &self,
+        poll_id: &str,
+        username: &str,
+    ) -> Result<Option<Document>, mongodb::error::Error> {
         println!("{:?}", poll_id);
         let pipeline = vec![
             doc! {
@@ -76,7 +79,7 @@ impl PollRepo {
     }
 
     pub async fn is_owner(&self, poll_id: &str, username: &str) -> bool {
-        match self.get(poll_id,username).await {
+        match self.get(poll_id, username).await {
             Ok(Some(poll)) => {
                 if let Some(owner_id) = poll.get("owner_id") {
                     return owner_id.as_str() == Some(username);
@@ -95,8 +98,10 @@ impl PollRepo {
         option_id: ObjectId,
         db: &DB,
     ) -> Result<bool, mongodb::error::Error> {
+        let mut session = db.client.start_session().await.unwrap();
+        session.start_transaction().await.unwrap();
         // 1. Fetch poll details
-        let poll_doc = match self.get(poll_id,&username).await? {
+        let poll_doc = match self.get(poll_id, &username).await? {
             Some(poll) => poll,
             None => return Ok(false), // Poll not found
         };
@@ -104,6 +109,7 @@ impl PollRepo {
         // 2. Check poll status
         let is_open = poll_doc.get_bool("is_open").unwrap_or(false);
         if !is_open {
+            session.abort_transaction().await.unwrap();
             return Ok(false); // Poll is closed
         }
 
@@ -116,57 +122,45 @@ impl PollRepo {
             .collect();
 
         if !poll_options.contains(&option_id) {
+            session.abort_transaction().await.unwrap();
             return Ok(false); // Option not part of this poll
         }
 
         // 4. Check if user has already voted in this poll
-        let option_collection = db.options.collection.clone();
+        let voters: Vec<String> = poll_doc
+            .get_array("voters")
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter_map(|v| v.as_str().map(String::from))
+            .collect();
 
-        // Find the specific option document
-        let option_filter = doc! {"_id": option_id};
-        let option_doc = match option_collection.find_one(option_filter.clone()).await? {
-            Some(doc) => doc,
-            None => return Ok(false), // Option not found
-        };
-
-        // 5. Check if user has already voted
-        let current_voters = option_doc.voters;
-
-        if current_voters.contains(&username) {
-            return Ok(false); // User has already voted
+        if voters.contains(&username) {
+            session.abort_transaction().await.unwrap();
+            return Ok(false); // User already voted
         }
 
-        // 6. Prepare update operations
-        // Atomically update both the option document
-        let update_option = doc! {
-            "$inc": { "votes_count": 1 },
-            "$push": { "voters": username }
+        // 5. Prepare update operations
+        let poll_filter = doc! {"id": poll_id};
+        let poll_update = doc! {
+            "$addToSet": {"voters": &username},
         };
 
-        // Begin a multi-document transaction for consistency
-        let mut session = db.client.start_session().await?;
-        session.start_transaction().await?;
-
-        let update_result = match option_collection
-            .update_one(option_filter, update_option)
-            .await
-        {
-            Ok(result) => result,
-            Err(e) => {
-                session.abort_transaction().await?;
-                return Err(e);
-            }
-        };
-
-        // 7. Verify update
-        if update_result.modified_count != 1 {
-            session.abort_transaction().await?;
-            return Ok(false);
+        let poll_update_result = self.collection.update_one(poll_filter, poll_update).await?;
+        if poll_update_result.matched_count == 0 {
+            return Ok(false); // Poll update failed
         }
 
-        // 8. Commit transaction
-        session.commit_transaction().await?;
+        let option_filter = doc! {"id": option_id};
+        let option_update = doc! {
+            "$add": {"votes": 1}
+        };
 
+        let option_poll_result = db
+            .options
+            .collection
+            .update_one(option_filter, option_update)
+            .await?;
+        session.commit_transaction().await.unwrap();
         Ok(true)
     }
 
@@ -192,9 +186,9 @@ impl PollRepo {
         Ok(result)
     }
 
-    // get live polls i.e status: true with decreasing votes count way, and we get page number, polls per page params to ensure pagination 
+    // get live polls i.e status: true with decreasing votes count way, and we get page number, polls per page params to ensure pagination
 
-    // get closed polls i.e status: false with decreasing votes count way, and we get page number, polls per page params to ensure pagination 
+    // get closed polls i.e status: false with decreasing votes count way, and we get page number, polls per page params to ensure pagination
 
     pub async fn reset_poll(
         &self,
@@ -205,7 +199,7 @@ impl PollRepo {
         if !self.is_owner(poll_id, username).await {
             return Ok(false);
         }
-        let poll_match = match self.get(poll_id,username).await? {
+        let poll_match = match self.get(poll_id, username).await? {
             Some(poll) => poll,
             None => {
                 return Ok(false);
@@ -240,17 +234,17 @@ impl PollRepo {
     }
 
     pub async fn get_live_polls(
-        &self, 
-        page: u64, 
-        per_page: u64
+        &self,
+        page: u64,
+        per_page: u64,
     ) -> Result<Vec<Document>, mongodb::error::Error> {
         // Validate pagination parameters
         let page = page.max(1);
         let per_page = per_page.clamp(1, 10);
-        
+
         // Calculate skip for pagination
         let skip = (page - 1) * per_page;
-    
+
         let pipeline = vec![
             // Match only open polls
             doc! {
@@ -387,31 +381,31 @@ impl PollRepo {
                         }
                     }
                 }
-            }
+            },
         ];
-    
+
         let mut cursor = self.collection.aggregate(pipeline).await?;
         let mut results = Vec::new();
-    
+
         while let Some(doc) = cursor.try_next().await? {
             results.push(doc);
         }
-    
+
         Ok(results)
     }
-    
+
     pub async fn get_closed_polls(
-        &self, 
-        page: u64, 
-        per_page: u64
+        &self,
+        page: u64,
+        per_page: u64,
     ) -> Result<Vec<Document>, mongodb::error::Error> {
         // Validate pagination parameters
         let page = page.max(1);
         let per_page = per_page.clamp(1, 100);
-        
+
         // Calculate skip for pagination
         let skip = (page - 1) * per_page;
-    
+
         let pipeline = vec![
             // Match only closed polls
             doc! {
@@ -548,25 +542,28 @@ impl PollRepo {
                         }
                     }
                 }
-            }
+            },
         ];
-    
+
         let mut cursor = self.collection.aggregate(pipeline).await?;
         let mut results = Vec::new();
-    
+
         while let Some(doc) = cursor.try_next().await? {
             results.push(doc);
         }
-    
+
         Ok(results)
     }
 
-    
     pub async fn count_live_polls(&self) -> Result<u64, mongodb::error::Error> {
-        self.collection.count_documents(doc! {"is_open": true}).await
+        self.collection
+            .count_documents(doc! {"is_open": true})
+            .await
     }
 
     pub async fn count_closed_polls(&self) -> Result<u64, mongodb::error::Error> {
-        self.collection.count_documents(doc! {"is_open": false}).await
+        self.collection
+            .count_documents(doc! {"is_open": false})
+            .await
     }
 }
