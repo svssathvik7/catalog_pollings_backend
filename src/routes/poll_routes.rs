@@ -79,9 +79,9 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
         .body("Successfully created poll!")
 }
 
-#[actix_web::get("/{id}")]
-pub async fn get_poll(id: Path<String>, db: Data<DB>) -> impl Responder {
-    let poll_data = match db.polls.get(id.as_str()).await {
+#[actix_web::post("/{id}")]
+pub async fn get_poll(id: Path<String>, db: Data<DB>, Json(username): Json<String>) -> impl Responder {
+    let poll_data = match db.polls.get(id.as_str(),&username).await {
         Ok(Some(poll)) => poll,
         Ok(None) => {
             return HttpResponse::BadRequest()

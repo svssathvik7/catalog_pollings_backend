@@ -26,6 +26,10 @@ pub struct PollRepo {
     pub collection: Collection<Poll>,
 }
 
+pub struct PollResponse{
+
+}
+
 impl PollRepo {
     pub async fn init(db: &Database) -> Self {
         let polls_repo = db.collection("polls");
@@ -39,7 +43,7 @@ impl PollRepo {
         result
     }
 
-    pub async fn get(&self, poll_id: &str) -> Result<Option<Document>, mongodb::error::Error> {
+    pub async fn get(&self, poll_id: &str, username: &str) -> Result<Option<Document>, mongodb::error::Error> {
         println!("{:?}", poll_id);
         let pipeline = vec![
             doc! {
@@ -72,7 +76,7 @@ impl PollRepo {
     }
 
     pub async fn is_owner(&self, poll_id: &str, username: &str) -> bool {
-        match self.get(poll_id).await {
+        match self.get(poll_id,username).await {
             Ok(Some(poll)) => {
                 if let Some(owner_id) = poll.get("owner_id") {
                     return owner_id.as_str() == Some(username);
@@ -92,7 +96,7 @@ impl PollRepo {
         db: &DB,
     ) -> Result<bool, mongodb::error::Error> {
         // 1. Fetch poll details
-        let poll_doc = match self.get(poll_id).await? {
+        let poll_doc = match self.get(poll_id,&username).await? {
             Some(poll) => poll,
             None => return Ok(false), // Poll not found
         };
@@ -201,7 +205,7 @@ impl PollRepo {
         if !self.is_owner(poll_id, username).await {
             return Ok(false);
         }
-        let poll_match = match self.get(poll_id).await? {
+        let poll_match = match self.get(poll_id,username).await? {
             Some(poll) => poll,
             None => {
                 return Ok(false);
