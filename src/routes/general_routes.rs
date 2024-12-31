@@ -15,7 +15,7 @@ pub async fn get_live_polls(
     web::Query(params): web::Query<PaginationParams>
 ) -> impl Responder {
     let page = params.page.unwrap_or(1);
-    let per_page = params.per_page.unwrap_or(10);
+    let per_page = params.per_page.unwrap_or(2);
 
     // Fetch polls
     let polls = match db.polls.get_live_polls(page, per_page).await {

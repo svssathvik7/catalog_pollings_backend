@@ -6,13 +6,14 @@ use mongodb::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct Option {
+pub struct OptionModel {
+    pub _id: ObjectId,
     pub text: String,
     pub votes_count: u64,
 }
 
 pub struct OptionRepo {
-    pub collection: Collection<Option>,
+    pub collection: Collection<OptionModel>,
 }
 impl OptionRepo {
     pub async fn init(db: &Database) -> Self {
@@ -24,7 +25,7 @@ impl OptionRepo {
 
     pub async fn insert(
         &self,
-        new_option: Option,
+        new_option: OptionModel,
     ) -> Result<InsertOneResult, mongodb::error::Error> {
         let result = self.collection.insert_one(new_option).await;
         result

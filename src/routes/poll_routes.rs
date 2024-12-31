@@ -10,7 +10,7 @@ use mongodb::bson::{doc, oid::ObjectId};
 use nanoid::nanoid;
 
 use crate::{
-    db::{options_repo::Option, polls_repo::Poll, DB},
+    db::{options_repo::OptionModel, polls_repo::Poll, DB},
     models::poll_api_model::NewPollRequest,
 };
 
@@ -30,7 +30,8 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
     };
     let mut option_inserted = true;
     for option in options {
-        let new_option = Option {
+        let new_option = OptionModel {
+            _id: ObjectId::new(),
             text: option.text,
             votes_count: 0
         };
@@ -80,15 +81,18 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
 }
 
 #[actix_web::post("/{id}")]
-pub async fn get_poll(id: Path<String>, db: Data<DB>, Json(username): Json<String>) -> impl Responder {
+pub async fn get_poll(id: Path<String>, db: Data<DB>, Json(username): Json<HashMap<String,String>>) -> impl Responder {
+    let username = match username.get("username"){
+        Some(username) => username,
+        None => {
+            return HttpResponse::BadRequest()
+            .status(StatusCode::NOT_FOUND)
+            .body("Need username!");
+        }
+    };
     let poll_data = match db.polls.get(id.as_str(),&username).await {
-        Ok(poll_response) => match poll_response.poll {
-            Some(poll) => poll,
-            None => {
-                return HttpResponse::BadRequest()
-                .status(StatusCode::NOT_FOUND)
-                .body("No poll found!");
-            }
+        Ok(poll_response) => {
+            poll_response
         },
         Err(e) => {
             eprint!("Error finding poll {:?}", e);
