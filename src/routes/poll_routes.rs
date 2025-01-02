@@ -90,6 +90,7 @@ pub async fn get_poll(id: Path<String>, db: Data<DB>, Json(username): Json<HashM
             .body("Need username!");
         }
     };
+    println!("poll id: {:?}", id.as_str());
     let poll_data = match db.polls.get(id.as_str(),&username).await {
         Ok(poll_response) => {
             poll_response
@@ -225,6 +226,7 @@ pub async fn cast_vote(
 pub fn init(cnf: &mut ServiceConfig) {
     cnf.service(create_poll)
         .service(get_poll)
+        .service(cast_vote)
         .service(close_poll);
     ()
 }

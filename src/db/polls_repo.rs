@@ -105,7 +105,7 @@ impl PollRepo {
                 poll: Some(poll),
                 has_voted,
             };
-            println!("{:?}", poll_response);
+            // println!("{:?}", poll_response);
 
             Ok(poll_response)
         } else {
@@ -149,6 +149,7 @@ impl PollRepo {
                 }
             },
             Err(e) => {
+                eprintln!("Error fetching poll: {:?}", e);
                 return Ok(false);
             }
         };
@@ -189,9 +190,9 @@ impl PollRepo {
             return Ok(false); // Poll update failed
         }
 
-        let option_filter = doc! {"id": option_id};
+        let option_filter = doc! {"_id": option_id};
         let option_update = doc! {
-            "$add": {"votes": 1}
+            "$inc": {"votes_count": 1}
         };
 
         let option_poll_result = db
