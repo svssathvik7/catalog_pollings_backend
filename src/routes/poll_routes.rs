@@ -33,7 +33,7 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
         let new_option = OptionModel {
             _id: ObjectId::new(),
             text: option.text,
-            votes_count: 0
+            votes_count: 0,
         };
         option_inserted = option_inserted
             && match db.options.insert(new_option).await {
@@ -62,7 +62,7 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
         options: option_ids,
         owner_id: poll_data.ownername,
         is_open: true,
-        voters: Vec::new()
+        voters: Vec::new(),
     };
     let _poll_insert_result = match db.polls.insert(new_poll).await {
         Ok(inserted_poll) => inserted_poll,
@@ -81,20 +81,22 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
 }
 
 #[actix_web::post("/{id}")]
-pub async fn get_poll(id: Path<String>, db: Data<DB>, Json(username): Json<HashMap<String,String>>) -> impl Responder {
-    let username = match username.get("username"){
+pub async fn get_poll(
+    id: Path<String>,
+    db: Data<DB>,
+    Json(username): Json<HashMap<String, String>>,
+) -> impl Responder {
+    let username = match username.get("username") {
         Some(username) => username,
         None => {
             return HttpResponse::BadRequest()
-            .status(StatusCode::NOT_FOUND)
-            .body("Need username!");
+                .status(StatusCode::NOT_FOUND)
+                .body("Need username!");
         }
     };
     println!("poll id: {:?}", id.as_str());
-    let poll_data = match db.polls.get(id.as_str(),&username).await {
-        Ok(poll_response) => {
-            poll_response
-        },
+    let poll_data = match db.polls.get(id.as_str(), &username).await {
+        Ok(poll_response) => poll_response,
         Err(e) => {
             eprint!("Error finding poll {:?}", e);
             return HttpResponse::InternalServerError()

@@ -13,6 +13,7 @@ pub mod db;
 pub mod middlewares;
 pub mod models;
 pub mod routes;
+pub mod sse;
 pub mod utils;
 pub mod webauthn;
 

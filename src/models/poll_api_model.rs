@@ -8,6 +8,6 @@ pub struct NewPollRequest {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct OptionRequest{
-    pub text: String
+pub struct OptionRequest {
+    pub text: String,
 }

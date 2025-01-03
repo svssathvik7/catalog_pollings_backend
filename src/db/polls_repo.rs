@@ -100,7 +100,7 @@ impl PollRepo {
             let poll: GetPollResponse = bson::from_document(doc)?;
             // Check if the username is in the voters list
             let has_voted = poll.voters.iter().any(|voter| voter == username);
-            
+
             let poll_response = PollResponse {
                 poll: Some(poll),
                 has_voted,

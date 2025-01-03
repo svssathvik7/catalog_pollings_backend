@@ -1,4 +1,7 @@
-use actix_web::{web::{self, Data, ServiceConfig}, HttpResponse, Responder};
+use actix_web::{
+    web::{self, Data, ServiceConfig},
+    HttpResponse, Responder,
+};
 use serde::Deserialize;
 
 use crate::db::DB;
@@ -12,7 +15,7 @@ struct PaginationParams {
 #[actix_web::get("/live")]
 pub async fn get_live_polls(
     db: Data<DB>,
-    web::Query(params): web::Query<PaginationParams>
+    web::Query(params): web::Query<PaginationParams>,
 ) -> impl Responder {
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(2);
@@ -21,8 +24,7 @@ pub async fn get_live_polls(
     let polls = match db.polls.get_live_polls(page, per_page).await {
         Ok(polls) => polls,
         Err(_) => {
-            return HttpResponse::InternalServerError()
-                .json("Failed to fetch closed polls");
+            return HttpResponse::InternalServerError().json("Failed to fetch closed polls");
         }
     };
 
@@ -44,7 +46,7 @@ pub async fn get_live_polls(
 #[actix_web::get("/closed")]
 pub async fn get_closed_polls(
     db: Data<DB>,
-    web::Query(params): web::Query<PaginationParams>
+    web::Query(params): web::Query<PaginationParams>,
 ) -> impl Responder {
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(10);
@@ -53,8 +55,7 @@ pub async fn get_closed_polls(
     let polls = match db.polls.get_closed_polls(page, per_page).await {
         Ok(polls) => polls,
         Err(_) => {
-            return HttpResponse::InternalServerError()
-                .json("Failed to fetch closed polls");
+            return HttpResponse::InternalServerError().json("Failed to fetch closed polls");
         }
     };
 
@@ -73,7 +74,7 @@ pub async fn get_closed_polls(
     }))
 }
 
-pub fn init(cnf: &mut ServiceConfig){
+pub fn init(cnf: &mut ServiceConfig) {
     cnf.service(get_live_polls).service(get_closed_polls);
     ()
 }
