@@ -2,13 +2,19 @@ use std::{collections::HashMap, hash::Hash, sync::Mutex, vec};
 
 use actix_web::{
     http::StatusCode,
-    web::{Data, Json, Path, ServiceConfig},
+    web::{self, Data, Json, Path, ServiceConfig},
     HttpResponse, Responder,
 };
 use chrono::Utc;
-use mongodb::bson::{doc, oid::ObjectId};
+use mongodb::bson::oid::ObjectId;
 use nanoid::nanoid;
-use tokio::sync::{broadcast, mpsc::Sender};
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct PaginationParams {
+    page: Option<u64>,
+    per_page: Option<u64>,
+}
 
 use crate::{
     db::{options_repo::OptionModel, polls_repo::Poll, DB},
@@ -237,10 +243,51 @@ pub async fn cast_vote(
     }
 }
 
+#[actix_web::get("/user/{username}")] // GET /polls/user
+pub async fn get_user_polls(
+    db: Data<DB>,
+    web::Query(params): web::Query<PaginationParams>,
+    username: Path<String>,
+) -> impl Responder {
+    println!("{:?} {:?}", params.page, params.per_page);
+    let page = params.page.unwrap_or(1);
+    let per_page = params.per_page.unwrap_or(5);
+    let user_polls = match db
+        .polls
+        .get_polls_by_username(&username.to_string(), page, per_page)
+        .await
+    {
+        Ok(polls) => polls,
+        Err(e) => {
+            eprintln!("Error fetching user polls: {:?}", e);
+            return HttpResponse::InternalServerError()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .json("Failed to fetch user polls");
+        }
+    };
+
+    let total_polls = db
+        .polls
+        .count_polls_by_username(&username.to_string())
+        .await
+        .unwrap();
+
+    HttpResponse::Ok()
+        .status(StatusCode::OK)
+        .json(serde_json::json!({
+            "polls": user_polls,
+            "page": page,
+            "per_page": per_page,
+            "total_polls": total_polls,
+            "total_pages": (total_polls as f64 / per_page as f64).ceil() as u64
+        }))
+}
+
 pub fn init(cnf: &mut ServiceConfig) {
     cnf.service(create_poll)
         .service(get_poll)
         .service(cast_vote)
-        .service(close_poll);
+        .service(close_poll)
+        .service(get_user_polls);
     ()
 }

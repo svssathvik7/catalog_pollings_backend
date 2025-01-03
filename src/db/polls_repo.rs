@@ -602,4 +602,180 @@ impl PollRepo {
             .count_documents(doc! {"is_open": false})
             .await
     }
+    pub async fn get_polls_by_username(
+        &self,
+        username: &str,
+        page: u64,
+        per_page: u64,
+    ) -> Result<Vec<Document>, mongodb::error::Error> {
+        // Validate pagination parameters - keeping them reasonable
+        let page = page.max(1);
+        let per_page = per_page.clamp(1, 100);
+
+        // Calculate skip value for pagination
+        let skip = (page - 1) * per_page;
+
+        // Create the aggregation pipeline
+        let pipeline = vec![
+            // Match polls owned by the specified username
+            doc! {
+                "$match": {
+                    "owner_id": username
+                }
+            },
+            // Lookup to expand the options
+            doc! {
+                "$lookup": {
+                    "from": "options",
+                    "localField": "options",
+                    "foreignField": "_id",
+                    "as": "expanded_options"
+                }
+            },
+            // Lookup for owner details (keeping consistent with other functions)
+            doc! {
+                "$lookup": {
+                    "from": "users",
+                    "localField": "owner_id",
+                    "foreignField": "_id",
+                    "as": "owner"
+                }
+            },
+            // Unwind the owner array
+            doc! {
+                "$unwind": {
+                    "path": "$owner",
+                    "preserveNullAndEmptyArrays": true
+                }
+            },
+            // Lookup for voter details
+            doc! {
+                "$lookup": {
+                    "from": "users",
+                    "let": { "expanded_options": "$expanded_options" },
+                    "pipeline": [
+                        {
+                            "$match": {
+                                "$expr": {
+                                    "$in": ["$_id", "$$expanded_options.voters"]
+                                }
+                            }
+                        },
+                        {
+                            "$project": {
+                                "_id": 1,
+                                "username": 1,
+                                "uuid": 1
+                            }
+                        }
+                    ],
+                    "as": "voter_details"
+                }
+            },
+            // Map voters to their respective options
+            doc! {
+                "$addFields": {
+                    "expanded_options": {
+                        "$map": {
+                            "input": "$expanded_options",
+                            "as": "option",
+                            "in": {
+                                "$mergeObjects": [
+                                    "$$option",
+                                    {
+                                        "voters": {
+                                            "$map": {
+                                                "input": {
+                                                    "$filter": {
+                                                        "input": "$voter_details",
+                                                        "as": "voter",
+                                                        "cond": {
+                                                            "$in": ["$$voter._id", "$$option.voters"]
+                                                        }
+                                                    }
+                                                },
+                                                "as": "voter",
+                                                "in": {
+                                                    "_id": "$$voter._id",
+                                                    "username": "$$voter.username",
+                                                    "uuid": "$$voter.uuid"
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            // Calculate total votes
+            doc! {
+                "$addFields": {
+                    "total_votes": {
+                        "$sum": "$expanded_options.votes_count"
+                    }
+                }
+            },
+            // Sort by creation date (most recent first)
+            doc! {
+                "$sort": {
+                    "created_at": -1
+                }
+            },
+            // Apply pagination
+            doc! {
+                "$skip": skip as i64
+            },
+            doc! {
+                "$limit": per_page as i64
+            },
+            // Final projection
+            doc! {
+                "$project": {
+                    "_id": 1,
+                    "id": 1,
+                    "title": 1,
+                    "total_votes": 1,
+                    "is_open": 1,
+                    "created_at": 1,
+                    "updated_at": 1,
+                    "owner_username": "$owner.username",
+                    "options": {
+                        "$map": {
+                            "input": "$expanded_options",
+                            "as": "option",
+                            "in": {
+                                "_id": "$$option._id",
+                                "text": "$$option.text",
+                                "votes_count": "$$option.votes_count",
+                                "voters": "$$option.voters"
+                            }
+                        }
+                    }
+                }
+            },
+        ];
+
+        // Execute the aggregation
+        let mut cursor = self.collection.aggregate(pipeline).await?;
+        let mut results = Vec::new();
+
+        // Collect all documents
+        while let Some(doc) = cursor.try_next().await? {
+            results.push(doc);
+        }
+
+        Ok(results)
+    }
+
+    // Helper function to count total polls by username
+    pub async fn count_polls_by_username(
+        &self,
+        username: &str,
+    ) -> Result<u64, mongodb::error::Error> {
+        self.collection
+            .count_documents(doc! {"owner_id": username})
+            .await
+    }
 }
