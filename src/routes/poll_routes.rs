@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash, vec};
+use std::{collections::HashMap, hash::Hash, sync::Mutex, vec};
 
 use actix_web::{
     http::StatusCode,
@@ -8,10 +8,12 @@ use actix_web::{
 use chrono::Utc;
 use mongodb::bson::{doc, oid::ObjectId};
 use nanoid::nanoid;
+use tokio::sync::{broadcast, mpsc::Sender};
 
 use crate::{
     db::{options_repo::OptionModel, polls_repo::Poll, DB},
     models::poll_api_model::NewPollRequest,
+    sse::Broadcaster,
 };
 
 #[actix_web::post("/new")]
@@ -84,6 +86,7 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
 pub async fn get_poll(
     id: Path<String>,
     db: Data<DB>,
+    broadcaster: Data<Mutex<Broadcaster>>,
     Json(username): Json<HashMap<String, String>>,
 ) -> impl Responder {
     let username = match username.get("username") {
@@ -176,6 +179,7 @@ pub async fn reset_poll(
 pub async fn cast_vote(
     db: Data<DB>,
     id: Path<String>,
+    broadcaster: Data<Mutex<Broadcaster>>,
     Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
     // 1. Extract and validate username
@@ -209,10 +213,18 @@ pub async fn cast_vote(
     };
 
     // 4. Attempt to cast vote
-    match db.polls.add_vote(&id, username, option_id, &db).await {
-        Ok(true) => HttpResponse::Ok()
-            .status(StatusCode::ACCEPTED)
-            .json("Vote recorded successfully!"),
+    match db
+        .polls
+        .add_vote(&id, username.clone(), option_id, &db)
+        .await
+    {
+        Ok(true) => {
+            let poll_data = db.polls.get(&id, &username).await.unwrap();
+            broadcaster.lock().unwrap().send_poll_results(&poll_data);
+            return HttpResponse::Ok()
+                .status(StatusCode::ACCEPTED)
+                .json("Vote recorded successfully!");
+        }
         Ok(false) => HttpResponse::BadRequest()
             .status(StatusCode::BAD_REQUEST)
             .json("Unable to cast vote. Poll might be closed or you've already voted."),
