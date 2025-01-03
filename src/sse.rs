@@ -75,8 +75,8 @@ impl Broadcaster {
         }
     }
 
-    pub fn send_poll_results(&self, response: &Value) {
-        let poll_json = response.to_string();
+    pub fn send_poll_results(&self, response: &PollResponse) {
+        let poll_json = format!("{:?}", serde_json::to_string(response).unwrap());
 
         let msg = Bytes::from(format!("event: poll_results\ndata: {}\n\n", poll_json));
 

@@ -6,7 +6,9 @@ use actix_web::{
 };
 use db::DB;
 use middlewares::authenticate::authenticate_user;
-use routes::{auth_routes, general_routes, poll_routes};
+use routes::{auth_routes, general_routes, poll_routes, sse_route};
+use sse::Broadcaster;
+use tokio::sync::broadcast;
 use utils::jwt::JWT;
 use webauthn::config_webauthn;
 pub mod db;
@@ -22,6 +24,7 @@ async fn main() -> Result<(), std::io::Error> {
     let mongodb = Data::new(DB::init().await);
     let webauthn = Data::new(config_webauthn().unwrap());
     let jwt = Data::new(JWT::init());
+    let broadcaster = Broadcaster::create();
     HttpServer::new(move || {
         App::new()
             .wrap(
@@ -33,6 +36,7 @@ async fn main() -> Result<(), std::io::Error> {
             )
             .service(scope("/api").configure(general_routes::init))
             .service(scope("/auth").configure(auth_routes::init))
+            .service(scope("/sse").configure(sse_route::init))
             .service(
                 scope("")
                     .wrap(from_fn(authenticate_user))
@@ -41,6 +45,7 @@ async fn main() -> Result<(), std::io::Error> {
             .app_data(mongodb.clone())
             .app_data(webauthn.clone())
             .app_data(jwt.clone())
+            .app_data(broadcaster.clone())
     })
     .bind("localhost:5000")?
     .run()
