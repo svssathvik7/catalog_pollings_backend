@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use mongodb::{
     bson::{self, doc, oid::ObjectId, Document},
-    results::InsertOneResult,
+    results::{DeleteResult, InsertOneResult},
     Collection, Database,
 };
 use serde::{Deserialize, Serialize};
@@ -58,6 +58,35 @@ impl PollRepo {
     pub async fn insert(&self, new_poll: Poll) -> Result<InsertOneResult, mongodb::error::Error> {
         let result = self.collection.insert_one(new_poll).await;
         result
+    }
+
+    pub async fn delete(
+        &self,
+        poll_id: &str,
+        username: &str,
+    ) -> Result<bool, mongodb::error::Error> {
+        // Check if the user is the owner of the poll
+        if !self.is_owner(poll_id, username).await {
+            return Ok(false); // Return false if the user is not the owner
+        }
+
+        // Build the query to find the poll by ID
+        let query = doc! { "id": poll_id };
+
+        // Attempt to delete the poll
+        match self.collection.delete_one(query).await {
+            Ok(delete_result) => {
+                if delete_result.deleted_count > 0 {
+                    Ok(true) // Return true if a document was successfully deleted
+                } else {
+                    Ok(false) // Return false if no document matched the query
+                }
+            }
+            Err(e) => {
+                eprintln!("Error deleting poll: {:?}", e); // Log the error
+                Err(e) // Propagate the error to the caller
+            }
+        }
     }
 
     pub async fn get(
@@ -257,7 +286,8 @@ impl PollRepo {
         let update = doc! {
             "$set": {
                 "options": Vec::<ObjectId>::new(),
-                "is_open": true
+                "is_open": true,
+                "voters": Vec::<ObjectId>::new()
             }
         };
 
@@ -297,18 +327,15 @@ impl PollRepo {
                     "as": "options"
                 }
             },
-            // Calculate total votes
             doc! {
                 "$addFields": {
-                    "total_votes": {
-                        "$sum": "$options.votes_count"
-                    }
+                    "total_voters": { "$size": "$voters" }
                 }
             },
-            // Sort by total votes in descending order
+            // Sort by total_voters in descending order
             doc! {
                 "$sort": {
-                    "total_votes": -1
+                    "total_voters": -1
                 }
             },
             // Pagination
@@ -324,8 +351,8 @@ impl PollRepo {
                     "_id": 1,
                     "id": 1,
                     "title": 1,
-                    "total_votes": 1,
                     "is_open": 1,
+                    "voters": 1,
                     "owner_id": "$owner_id",
                     "options": {
                         "$map": {
@@ -381,18 +408,15 @@ impl PollRepo {
                     "as": "options"
                 }
             },
-            // Calculate total votes
             doc! {
                 "$addFields": {
-                    "total_votes": {
-                        "$sum": "$options.votes_count"
-                    }
+                    "total_voters": { "$size": "$voters" }
                 }
             },
-            // Sort by total votes in descending order
+            // Sort by total_voters in descending order
             doc! {
                 "$sort": {
-                    "total_votes": -1
+                    "total_voters": -1
                 }
             },
             // Pagination
@@ -408,7 +432,7 @@ impl PollRepo {
                     "_id": 1,
                     "id": 1,
                     "title": 1,
-                    "total_votes": 1,
+                    "voters": 1,
                     "is_open": 1,
                     "owner_id": 1,
                     "options": {

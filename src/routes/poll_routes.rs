@@ -146,6 +146,35 @@ pub async fn close_poll(
     };
 }
 
+#[actix_web::post("/{id}/delete")]
+pub async fn delete_poll(
+    id: Path<String>,
+    db: Data<DB>,
+    Json(req): Json<HashMap<String, String>>,
+) -> impl Responder {
+    let username = match req.get("username") {
+        Some(username) => username.clone(),
+        None => {
+            return HttpResponse::BadRequest()
+                .status(StatusCode::FORBIDDEN)
+                .json("Owner username required!");
+        }
+    };
+    let _is_poll_deleted = match db.polls.delete(id.as_str(), &username).await {
+        Ok(_) => {
+            return HttpResponse::Ok()
+                .status(StatusCode::ACCEPTED)
+                .json("Poll deleted");
+        }
+        Err(e) => {
+            eprintln!("Error deleting the poll! {:?}", e);
+            return HttpResponse::BadRequest()
+                .status(StatusCode::BAD_REQUEST)
+                .json("Failed deleting the poll!");
+        }
+    };
+}
+
 #[actix_web::post("/{id}/reset")]
 pub async fn reset_poll(
     id: Path<String>,
@@ -287,6 +316,7 @@ pub fn init(cnf: &mut ServiceConfig) {
         .service(cast_vote)
         .service(close_poll)
         .service(get_user_polls)
-        .service(reset_poll);
+        .service(reset_poll)
+        .service(delete_poll);
     ()
 }
