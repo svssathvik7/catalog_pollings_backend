@@ -180,6 +180,7 @@ pub async fn reset_poll(
     id: Path<String>,
     db: Data<DB>,
     Json(req): Json<HashMap<String, String>>,
+    broadcaster: Data<Mutex<Broadcaster>>,
 ) -> impl Responder {
     let username = match req.get("username") {
         Some(username) => username.clone(),
@@ -189,24 +190,29 @@ pub async fn reset_poll(
                 .json("Owner username required!");
         }
     };
-    let _reset_poll = match db
-        .clone()
-        .polls
-        .reset_poll(id.as_str(), &db.into_inner(), &username)
-        .await
-    {
-        Ok(_reset) => {
-            return HttpResponse::Ok()
-                .status(StatusCode::ACCEPTED)
-                .json("Poll reset!");
-        }
+
+    match db.polls.reset_poll(id.as_str(), &db, &username).await {
+        Ok(_) => match db.polls.get(&id, &username).await {
+            Ok(poll_data) => {
+                broadcaster.lock().unwrap().send_poll_results(&poll_data);
+                HttpResponse::Ok()
+                    .status(StatusCode::ACCEPTED)
+                    .json("Poll reset!")
+            }
+            Err(e) => {
+                eprint!("Error fetching poll data after reset {:?}", e);
+                HttpResponse::InternalServerError()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .json("Failed to retrieve updated poll data!")
+            }
+        },
         Err(e) => {
             eprint!("Error resetting poll {:?}", e);
-            return HttpResponse::InternalServerError()
+            HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Failed resetting poll, try again later!");
+                .json("Failed resetting poll, try again later!")
         }
-    };
+    }
 }
 
 #[actix_web::post("/{id}/vote")]

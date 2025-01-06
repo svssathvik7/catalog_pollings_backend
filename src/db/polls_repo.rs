@@ -279,13 +279,13 @@ impl PollRepo {
 
         for option in options {
             let filter = doc! {"_id": option._id};
-            db.options.delete(filter).await?;
+            let update = doc! {"$set": {"votes_count": 0}};
+            db.options.collection.update_one(filter, update).await?;
         }
 
         let filter = doc! {"id": poll_id};
         let update = doc! {
             "$set": {
-                "options": Vec::<ObjectId>::new(),
                 "is_open": true,
                 "voters": Vec::<ObjectId>::new()
             }
