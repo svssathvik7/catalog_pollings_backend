@@ -529,7 +529,7 @@ impl PollRepo {
                     "_id": 1,
                     "id": 1,
                     "title": 1,
-                    "total_votes": 1,
+                    "voters": 1,
                     "is_open": 1,
                     "created_at": 1,
                     "updated_at": 1,
