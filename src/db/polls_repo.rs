@@ -65,7 +65,6 @@ impl PollRepo {
         poll_id: &str,
         username: &str,
     ) -> Result<PollResponse, mongodb::error::Error> {
-        println!("{:?}", poll_id);
         let pipeline = vec![
             doc! {
                 "$match" : {
@@ -215,7 +214,7 @@ impl PollRepo {
         let filter = doc! {"id":poll_id};
         let result = match self
             .collection
-            .update_one(filter, doc! {"status": false})
+            .update_one(filter, doc! {"$set" : {"is_open": false}})
             .await
         {
             Ok(_document) => true,
@@ -243,6 +242,7 @@ impl PollRepo {
                 }
             },
             Err(e) => {
+                eprintln!("Error resetting poll! {:?}", e);
                 return Ok(false);
             }
         };
@@ -294,91 +294,14 @@ impl PollRepo {
                     "from": "options",
                     "localField": "options",
                     "foreignField": "_id",
-                    "as": "expanded_options"
-                }
-            },
-            // Second lookup for poll owner details
-            doc! {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "owner_id",
-                    "foreignField": "_id",
-                    "as": "owner"
-                }
-            },
-            // Unwind owner array (since it will be single document)
-            doc! {
-                "$unwind": {
-                    "path": "$owner",
-                    "preserveNullAndEmptyArrays": true
-                }
-            },
-            // For each option, expand its voters
-            doc! {
-                "$lookup": {
-                    "from": "users",
-                    "let": { "expanded_options": "$expanded_options" },
-                    "pipeline": [
-                        {
-                            "$match": {
-                                "$expr": {
-                                    "$in": ["$_id", "$$expanded_options.voters"]
-                                }
-                            }
-                        },
-                        {
-                            "$project": {
-                                "_id": 1,
-                                "username": 1,
-                                "uuid": 1
-                            }
-                        }
-                    ],
-                    "as": "voter_details"
-                }
-            },
-            // Map voters to their respective options
-            doc! {
-                "$addFields": {
-                    "expanded_options": {
-                        "$map": {
-                            "input": "$expanded_options",
-                            "as": "option",
-                            "in": {
-                                "$mergeObjects": [
-                                    "$$option",
-                                    {
-                                        "voters": {
-                                            "$map": {
-                                                "input": {
-                                                    "$filter": {
-                                                        "input": "$voter_details",
-                                                        "as": "voter",
-                                                        "cond": {
-                                                            "$in": ["$$voter._id", "$$option.voters"]
-                                                        }
-                                                    }
-                                                },
-                                                "as": "voter",
-                                                "in": {
-                                                    "_id": "$$voter._id",
-                                                    "username": "$$voter.username",
-                                                    "uuid": "$$voter.uuid"
-                                                }
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
+                    "as": "options"
                 }
             },
             // Calculate total votes
             doc! {
                 "$addFields": {
                     "total_votes": {
-                        "$sum": "$expanded_options.votes_count"
+                        "$sum": "$options.votes_count"
                     }
                 }
             },
@@ -403,10 +326,10 @@ impl PollRepo {
                     "title": 1,
                     "total_votes": 1,
                     "is_open": 1,
-                    "owner_username": "$owner.username",
+                    "owner_id": "$owner_id",
                     "options": {
                         "$map": {
-                            "input": "$expanded_options",
+                            "input": "$options",
                             "as": "option",
                             "in": {
                                 "_id": "$$option._id",
@@ -455,91 +378,14 @@ impl PollRepo {
                     "from": "options",
                     "localField": "options",
                     "foreignField": "_id",
-                    "as": "expanded_options"
-                }
-            },
-            // Second lookup for poll owner details
-            doc! {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "owner_id",
-                    "foreignField": "_id",
-                    "as": "owner"
-                }
-            },
-            // Unwind owner array (since it will be single document)
-            doc! {
-                "$unwind": {
-                    "path": "$owner",
-                    "preserveNullAndEmptyArrays": true
-                }
-            },
-            // For each option, expand its voters
-            doc! {
-                "$lookup": {
-                    "from": "users",
-                    "let": { "expanded_options": "$expanded_options" },
-                    "pipeline": [
-                        {
-                            "$match": {
-                                "$expr": {
-                                    "$in": ["$_id", "$$expanded_options.voters"]
-                                }
-                            }
-                        },
-                        {
-                            "$project": {
-                                "_id": 1,
-                                "username": 1,
-                                "uuid": 1
-                            }
-                        }
-                    ],
-                    "as": "voter_details"
-                }
-            },
-            // Map voters to their respective options
-            doc! {
-                "$addFields": {
-                    "expanded_options": {
-                        "$map": {
-                            "input": "$expanded_options",
-                            "as": "option",
-                            "in": {
-                                "$mergeObjects": [
-                                    "$$option",
-                                    {
-                                        "voters": {
-                                            "$map": {
-                                                "input": {
-                                                    "$filter": {
-                                                        "input": "$voter_details",
-                                                        "as": "voter",
-                                                        "cond": {
-                                                            "$in": ["$$voter._id", "$$option.voters"]
-                                                        }
-                                                    }
-                                                },
-                                                "as": "voter",
-                                                "in": {
-                                                    "_id": "$$voter._id",
-                                                    "username": "$$voter.username",
-                                                    "uuid": "$$voter.uuid"
-                                                }
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
+                    "as": "options"
                 }
             },
             // Calculate total votes
             doc! {
                 "$addFields": {
                     "total_votes": {
-                        "$sum": "$expanded_options.votes_count"
+                        "$sum": "$options.votes_count"
                     }
                 }
             },
@@ -564,10 +410,10 @@ impl PollRepo {
                     "title": 1,
                     "total_votes": 1,
                     "is_open": 1,
-                    "owner_username": "$owner.username",
+                    "owner_id": 1,
                     "options": {
                         "$map": {
-                            "input": "$expanded_options",
+                            "input": "$options",
                             "as": "option",
                             "in": {
                                 "_id": "$$option._id",
@@ -629,91 +475,14 @@ impl PollRepo {
                     "from": "options",
                     "localField": "options",
                     "foreignField": "_id",
-                    "as": "expanded_options"
-                }
-            },
-            // Lookup for owner details (keeping consistent with other functions)
-            doc! {
-                "$lookup": {
-                    "from": "users",
-                    "localField": "owner_id",
-                    "foreignField": "_id",
-                    "as": "owner"
-                }
-            },
-            // Unwind the owner array
-            doc! {
-                "$unwind": {
-                    "path": "$owner",
-                    "preserveNullAndEmptyArrays": true
-                }
-            },
-            // Lookup for voter details
-            doc! {
-                "$lookup": {
-                    "from": "users",
-                    "let": { "expanded_options": "$expanded_options" },
-                    "pipeline": [
-                        {
-                            "$match": {
-                                "$expr": {
-                                    "$in": ["$_id", "$$expanded_options.voters"]
-                                }
-                            }
-                        },
-                        {
-                            "$project": {
-                                "_id": 1,
-                                "username": 1,
-                                "uuid": 1
-                            }
-                        }
-                    ],
-                    "as": "voter_details"
-                }
-            },
-            // Map voters to their respective options
-            doc! {
-                "$addFields": {
-                    "expanded_options": {
-                        "$map": {
-                            "input": "$expanded_options",
-                            "as": "option",
-                            "in": {
-                                "$mergeObjects": [
-                                    "$$option",
-                                    {
-                                        "voters": {
-                                            "$map": {
-                                                "input": {
-                                                    "$filter": {
-                                                        "input": "$voter_details",
-                                                        "as": "voter",
-                                                        "cond": {
-                                                            "$in": ["$$voter._id", "$$option.voters"]
-                                                        }
-                                                    }
-                                                },
-                                                "as": "voter",
-                                                "in": {
-                                                    "_id": "$$voter._id",
-                                                    "username": "$$voter.username",
-                                                    "uuid": "$$voter.uuid"
-                                                }
-                                            }
-                                        }
-                                    }
-                                ]
-                            }
-                        }
-                    }
+                    "as": "options"
                 }
             },
             // Calculate total votes
             doc! {
                 "$addFields": {
                     "total_votes": {
-                        "$sum": "$expanded_options.votes_count"
+                        "$sum": "$options.votes_count"
                     }
                 }
             },
@@ -740,10 +509,10 @@ impl PollRepo {
                     "is_open": 1,
                     "created_at": 1,
                     "updated_at": 1,
-                    "owner_username": "$owner.username",
+                    "owner_id": 1,
                     "options": {
                         "$map": {
-                            "input": "$expanded_options",
+                            "input": "$options",
                             "as": "option",
                             "in": {
                                 "_id": "$$option._id",

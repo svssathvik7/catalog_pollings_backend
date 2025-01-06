@@ -103,7 +103,6 @@ pub async fn get_poll(
                 .body("Need username!");
         }
     };
-    println!("poll id: {:?}", id.as_str());
     let poll_data = match db.polls.get(id.as_str(), &username).await {
         Ok(poll_response) => poll_response,
         Err(e) => {
@@ -249,7 +248,6 @@ pub async fn get_user_polls(
     web::Query(params): web::Query<PaginationParams>,
     username: Path<String>,
 ) -> impl Responder {
-    println!("{:?} {:?}", params.page, params.per_page);
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(5);
     let user_polls = match db
@@ -288,6 +286,7 @@ pub fn init(cnf: &mut ServiceConfig) {
         .service(get_poll)
         .service(cast_vote)
         .service(close_poll)
-        .service(get_user_polls);
+        .service(get_user_polls)
+        .service(reset_poll);
     ()
 }
