@@ -9,6 +9,8 @@ use mongodb::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::models::poll_api_model::{PollOptionResult, PollResults};
+
 use super::{options_repo::OptionModel, DB};
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -47,21 +49,6 @@ pub struct PollRepo {
 pub struct PollResponse {
     pub poll: Option<GetPollResponse>,
     pub has_voted: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PollOptionResult {
-    pub text: String,
-    pub votes_count: i64,
-    pub votes_percentage: f64,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct PollResults {
-    pub id: String,
-    pub title: String,
-    pub total_votes: i64,
-    pub options: Vec<PollOptionResult>,
 }
 
 impl PollRepo {
