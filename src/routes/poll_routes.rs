@@ -1,4 +1,4 @@
-use std::{collections::HashMap, hash::Hash, sync::Mutex, vec};
+use std::{collections::HashMap, sync::Mutex};
 
 use actix_web::{
     http::StatusCode,
@@ -14,6 +14,8 @@ use serde::Deserialize;
 struct PaginationParams {
     page: Option<u64>,
     per_page: Option<u64>,
+    sort_by: Option<String>,
+    sort_order: Option<i8>,
 }
 
 use crate::{
@@ -92,7 +94,6 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
 pub async fn get_poll(
     id: Path<String>,
     db: Data<DB>,
-    broadcaster: Data<Mutex<Broadcaster>>,
     Json(username): Json<HashMap<String, String>>,
 ) -> impl Responder {
     let username = match username.get("username") {
@@ -285,9 +286,17 @@ pub async fn get_user_polls(
 ) -> impl Responder {
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(5);
+    let sort_by = params.sort_by.unwrap_or("created_at".to_string());
+    let sort_order = params.sort_order.unwrap_or(-1);
     let user_polls = match db
         .polls
-        .get_polls_by_username(&username.to_string(), page, per_page)
+        .get_polls_by_username(
+            &username.to_string(),
+            page,
+            per_page,
+            sort_by.as_str(),
+            sort_order,
+        )
         .await
     {
         Ok(polls) => polls,

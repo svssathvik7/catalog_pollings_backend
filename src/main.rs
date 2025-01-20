@@ -2,13 +2,12 @@ use actix_cors::Cors;
 use actix_web::{
     middleware::from_fn,
     web::{scope, Data},
-    App, HttpResponse, HttpServer,
+    App, HttpServer,
 };
 use db::DB;
 use middlewares::authenticate::authenticate_user;
 use routes::{auth_routes, general_routes, poll_routes, sse_route};
 use sse::Broadcaster;
-use tokio::sync::broadcast;
 use utils::jwt::JWT;
 use webauthn::config_webauthn;
 pub mod db;
@@ -34,13 +33,16 @@ async fn main() -> Result<(), std::io::Error> {
                     .allowed_origin("http://localhost:3000")
                     .supports_credentials(),
             )
-            .service(scope("/api").configure(general_routes::init))
-            .service(scope("/auth").configure(auth_routes::init))
-            .service(scope("/sse").configure(sse_route::init))
             .service(
-                scope("")
-                    .wrap(from_fn(authenticate_user))
-                    .service(scope("/polls").configure(poll_routes::init)),
+                scope("/api")
+                    .service(scope("/p").configure(general_routes::init))
+                    .service(scope("/auth").configure(auth_routes::init))
+                    .service(scope("/sse").configure(sse_route::init))
+                    .service(
+                        scope("")
+                            .wrap(from_fn(authenticate_user))
+                            .service(scope("/polls").configure(poll_routes::init)),
+                    ),
             )
             .app_data(mongodb.clone())
             .app_data(webauthn.clone())

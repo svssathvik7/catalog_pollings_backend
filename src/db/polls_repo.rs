@@ -1,8 +1,10 @@
+use std::{error::Error, str};
+
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use mongodb::{
     bson::{self, doc, oid::ObjectId, Document},
-    results::{DeleteResult, InsertOneResult},
+    results::InsertOneResult,
     Collection, Database,
 };
 use serde::{Deserialize, Serialize};
@@ -45,6 +47,19 @@ pub struct PollRepo {
 pub struct PollResponse {
     pub poll: Option<GetPollResponse>,
     pub has_voted: bool,
+}
+
+pub struct PollOptionResult {
+    pub text: String,
+    pub votes_count: i64,
+    pub votes_percentage: f64,
+}
+
+pub struct PollResults {
+    pub id: String,
+    pub title: String,
+    pub total_votes: i64,
+    pub options: Vec<PollOptionResult>,
 }
 
 impl PollRepo {
@@ -126,8 +141,13 @@ impl PollRepo {
         if let Some(doc) = cursor.try_next().await? {
             // Deserialize the document into a Poll struct
             let poll: GetPollResponse = bson::from_document(doc)?;
-            // Check if the username is in the voters list
-            let has_voted = poll.voters.iter().any(|voter| voter == username);
+            let mut has_voted: bool = true;
+            if username.is_empty() {
+                has_voted = true;
+            } else {
+                // Check if the username is in the voters list
+                has_voted = poll.voters.iter().any(|voter| voter == username);
+            }
 
             let poll_response = PollResponse {
                 poll: Some(poll),
@@ -223,7 +243,7 @@ impl PollRepo {
             "$inc": {"votes_count": 1}
         };
 
-        let option_poll_result = db
+        let _option_poll_result = db
             .options
             .collection
             .update_one(option_filter, option_update)
@@ -477,6 +497,8 @@ impl PollRepo {
         username: &str,
         page: u64,
         per_page: u64,
+        sort_by: &str,
+        sort_order: i8,
     ) -> Result<Vec<Document>, mongodb::error::Error> {
         // Validate pagination parameters - keeping them reasonable
         let page = page.max(1);
@@ -484,6 +506,37 @@ impl PollRepo {
 
         // Calculate skip value for pagination
         let skip = (page - 1) * per_page;
+
+        let sort_direction = if sort_order >= 0 { 1 } else { -1 };
+
+        let sort_doc = match sort_by {
+            "votes" => doc! {
+                "$sort": {
+                    "total_votes": sort_direction
+                }
+            },
+            "created_at" => doc! {
+                "$sort": {
+                    "created_at": sort_direction
+                }
+            },
+            "updated_at" => doc! {
+                "$sort": {
+                    "updated_at": sort_direction
+                }
+            },
+            "title" => doc! {
+                "$sort": {
+                    "title": sort_direction
+                }
+            },
+            // Default to created_at if sort_by is not recognized
+            _ => doc! {
+                "$sort": {
+                    "created_at": -1
+                }
+            },
+        };
 
         // Create the aggregation pipeline
         let pipeline = vec![
@@ -510,12 +563,7 @@ impl PollRepo {
                     }
                 }
             },
-            // Sort by creation date (most recent first)
-            doc! {
-                "$sort": {
-                    "created_at": -1
-                }
-            },
+            sort_doc,
             // Apply pagination
             doc! {
                 "$skip": skip as i64
@@ -570,5 +618,103 @@ impl PollRepo {
         self.collection
             .count_documents(doc! {"owner_id": username})
             .await
+    }
+
+    pub async fn get_poll_results(
+        &self,
+        poll_id: &str,
+    ) -> Result<Option<PollResults>, Box<dyn Error>> {
+        // Create an aggregation pipeline to get poll details with options
+        let pipeline = vec![
+            // Match the specific poll
+            doc! {
+                "$match": {
+                    "id": poll_id
+                }
+            },
+            // Lookup to get the options
+            doc! {
+                "$lookup": {
+                    "from": "options",
+                    "localField": "options",
+                    "foreignField": "_id",
+                    "as": "options"
+                }
+            },
+            // Calculate total votes across all options
+            doc! {
+                "$addFields": {
+                    "total_votes": {
+                        "$sum": "$options.votes_count"
+                    }
+                }
+            },
+            // Project the final format
+            doc! {
+                "$project": {
+                    "_id": 0,
+                    "id": 1,
+                    "total_votes": 1,
+                    "title": 1,
+                    "options": {
+                        "$map": {
+                            "input": "$options",
+                            "as": "option",
+                            "in": {
+                                "text": "$$option.text",
+                                "votes_count": "$$option.votes_count",
+                                "votes_percentage": {
+                                    "$cond": [
+                                        { "$eq": ["$total_votes", 0] },
+                                        0.0,
+                                        {
+                                            "$multiply": [
+                                                { "$divide": ["$$option.votes_count", "$total_votes"] },
+                                                100
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        ];
+
+        // Execute the aggregation pipeline
+        let mut cursor = self.collection.aggregate(pipeline).await?;
+
+        // Get the first (and should be only) result
+        if let Some(doc) = cursor.try_next().await? {
+            println!("{:?}", doc);
+            // Convert BSON document to our PollResults structure
+            let id = doc.get_str("id")?.to_string();
+            let title = doc.get_str("title")?.to_string();
+            let total_votes = doc.get_i64("total_votes")?;
+
+            let options_array = doc.get_array("options")?;
+            let mut options = Vec::new();
+
+            for option_doc in options_array {
+                if let bson::Bson::Document(option) = option_doc {
+                    options.push(PollOptionResult {
+                        text: option.get_str("text")?.to_string(),
+                        votes_count: option.get_i64("votes_count")?,
+                        votes_percentage: option.get_f64("votes_percentage")?,
+                    });
+                }
+            }
+            println!("its last");
+
+            Ok(Some(PollResults {
+                id,
+                title,
+                options,
+                total_votes,
+            }))
+        } else {
+            Ok(None)
+        }
     }
 }

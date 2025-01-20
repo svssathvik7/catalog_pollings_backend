@@ -73,7 +73,7 @@ pub async fn start_registration(
     };
 
     let result = match db.reg_states.insert(new_user_reg_state).await {
-        Ok(success) => HttpResponse::Ok().status(StatusCode::CREATED).json(ccr),
+        Ok(_success) => HttpResponse::Ok().status(StatusCode::CREATED).json(ccr),
         Err(e) => {
             eprint!("Error storing reg state to db {:?}", e);
             HttpResponse::InternalServerError()
@@ -193,6 +193,7 @@ pub async fn start_authentication(
     db: Data<DB>,
     webauthn: Data<Webauthn>,
 ) -> impl Responder {
+    println!("start reg");
     let username = username.as_str();
     let _does_user_exist = match db.users.is_exists(username).await {
         Ok(boolean_response) => {

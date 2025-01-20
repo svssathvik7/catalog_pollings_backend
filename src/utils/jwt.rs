@@ -1,4 +1,4 @@
-use std::{env, error::Error};
+use std::env;
 
 use chrono::{Duration, Utc};
 use dotenv::dotenv;
