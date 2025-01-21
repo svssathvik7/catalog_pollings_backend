@@ -20,7 +20,7 @@ struct PaginationParams {
 
 use crate::{
     db::{options_repo::OptionModel, polls_repo::Poll, DB},
-    models::poll_api_model::NewPollRequest,
+    models::poll_api_model::{NewPollRequest, PollResults},
     sse::Broadcaster,
 };
 
@@ -193,25 +193,29 @@ pub async fn reset_poll(
     };
 
     match db.polls.reset_poll(id.as_str(), &db, &username).await {
-        Ok(_) => match db.polls.get(&id, &username).await {
-            Ok(poll_data) => {
-                broadcaster.lock().unwrap().send_poll_results(&poll_data);
-                HttpResponse::Ok()
-                    .status(StatusCode::ACCEPTED)
-                    .json("Poll reset!")
-            }
-            Err(e) => {
-                eprint!("Error fetching poll data after reset {:?}", e);
-                HttpResponse::InternalServerError()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .json("Failed to retrieve updated poll data!")
-            }
-        },
+        Ok(_) => {
+            let poll_result_data = match db.polls.get_poll_results(&id).await.unwrap() {
+                Some(poll_result) => poll_result,
+                None => PollResults {
+                    id: "1234".to_string(),
+                    title: "Never reaches".to_string(),
+                    options: Vec::new(),
+                    total_votes: 0,
+                },
+            };
+            broadcaster
+                .lock()
+                .unwrap()
+                .send_poll_results(&poll_result_data);
+            return HttpResponse::Ok()
+                .status(StatusCode::ACCEPTED)
+                .json("Poll reset successfully!");
+        }
         Err(e) => {
-            eprint!("Error resetting poll {:?}", e);
-            HttpResponse::InternalServerError()
+            eprintln!("Error resetting poll! {:?}", e);
+            return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Failed resetting poll, try again later!")
+                .json("Couldn't reset poll!");
         }
     }
 }
@@ -260,8 +264,19 @@ pub async fn cast_vote(
         .await
     {
         Ok(true) => {
-            let poll_data = db.polls.get(&id, &username).await.unwrap();
-            broadcaster.lock().unwrap().send_poll_results(&poll_data);
+            let poll_result_data = match db.polls.get_poll_results(&id).await.unwrap() {
+                Some(poll_result) => poll_result,
+                None => PollResults {
+                    id: "1234".to_string(),
+                    title: "Never reaches".to_string(),
+                    options: Vec::new(),
+                    total_votes: 0,
+                },
+            };
+            broadcaster
+                .lock()
+                .unwrap()
+                .send_poll_results(&poll_result_data);
             return HttpResponse::Ok()
                 .status(StatusCode::ACCEPTED)
                 .json("Vote recorded successfully!");

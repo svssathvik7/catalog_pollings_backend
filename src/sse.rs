@@ -9,6 +9,7 @@ use std::pin::Pin;
 use std::sync::Mutex;
 
 use crate::db::polls_repo::PollResponse;
+use crate::models::poll_api_model::PollResults;
 
 pub struct Broadcaster {
     clients: Vec<Sender<Bytes>>,
@@ -74,10 +75,13 @@ impl Broadcaster {
         }
     }
 
-    pub fn send_poll_results(&self, response: &PollResponse) {
-        let poll_json = format!("{:?}", serde_json::to_string(response).unwrap());
+    pub fn send_poll_results(&self, response: &PollResults) {
+        let poll_result_json = format!("{:?}", serde_json::to_string(response).unwrap());
 
-        let msg = Bytes::from(format!("event: poll_results\ndata: {}\n\n", poll_json));
+        let msg = Bytes::from(format!(
+            "event: poll_results\ndata: {}\n\n",
+            poll_result_json
+        ));
 
         for client in &self.clients {
             let _ = client.clone().try_send(msg.clone());
