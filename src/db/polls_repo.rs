@@ -182,6 +182,7 @@ impl PollRepo {
             Ok(poll_response) => match poll_response.poll {
                 Some(poll) => poll,
                 None => {
+                    eprintln!("Didn't get matching poll!");
                     return Ok(false);
                 }
             },
@@ -194,6 +195,7 @@ impl PollRepo {
         // 2. Check poll status
         let is_open = poll_doc.is_open;
         if !is_open {
+            eprintln!("Poll closed!");
             session.abort_transaction().await.unwrap();
             return Ok(false); // Poll is closed
         }
@@ -204,6 +206,7 @@ impl PollRepo {
         let option_exists = poll_options.iter().any(|option| option._id == option_id);
 
         if !option_exists {
+            eprintln!("No such option exists!");
             session.abort_transaction().await.unwrap();
             return Ok(false); // Option not part of this poll
         }
@@ -212,6 +215,7 @@ impl PollRepo {
         let voters: Vec<String> = poll_doc.voters;
 
         if voters.contains(&username) {
+            eprintln!("Has already voted!");
             session.abort_transaction().await.unwrap();
             return Ok(false); // User already voted
         }
@@ -634,7 +638,9 @@ impl PollRepo {
             doc! {
                 "$addFields": {
                     "total_votes": {
-                        "$sum": "$options.votes_count"
+                        "$toLong" : {
+                            "$sum": "$options.votes_count"
+                        }
                     }
                 }
             },
@@ -651,7 +657,7 @@ impl PollRepo {
                             "as": "option",
                             "in": {
                                 "text": "$$option.text",
-                                "votes_count": "$$option.votes_count",
+                                "votes_count": { "$toLong": "$$option.votes_count" },
                                 "votes_percentage": {
                                     "$cond": [
                                         { "$eq": ["$total_votes", 0] },
