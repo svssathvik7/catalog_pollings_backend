@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use actix_web::{
     cookie::{time::Duration, Cookie, SameSite},
     http::StatusCode,
@@ -21,10 +23,11 @@ use crate::{
 
 #[actix_web::post("/register/start/{username}")]
 pub async fn start_registration(
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     username: Path<String>,
     webauthn: Data<Webauthn>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let username = username.as_str();
     let users_match = db.users.search_by_username(username).await;
 
@@ -84,11 +87,12 @@ pub async fn start_registration(
 
 #[actix_web::post("/register/finish/{username}")]
 pub async fn finish_registration(
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     webauthn: Data<Webauthn>,
     username: Path<String>,
     request: Json<RegisterPublicKeyCredential>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let username = username.as_str();
     let _does_reg_state_exist = match db.reg_states.is_exists(username).await {
         Ok(data) => {
@@ -188,10 +192,11 @@ pub async fn finish_registration(
 #[actix_web::post("/login/start/{username}")]
 pub async fn start_authentication(
     username: Path<String>,
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     webauthn: Data<Webauthn>,
 ) -> impl Responder {
     let username = username.as_str();
+    let db = db.lock().unwrap();
     let _does_user_exist = match db.users.is_exists(username).await {
         Ok(boolean_response) => {
             if boolean_response {
@@ -277,11 +282,12 @@ pub async fn start_authentication(
 #[actix_web::post("/login/finish/{username}")]
 pub async fn finish_authentication(
     username: Path<String>,
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     webauthn: Data<Webauthn>,
     req: Json<PublicKeyCredential>,
     jwt: Data<JWT>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let username = username.as_str();
     let _does_auth_state_exist = match db.auth_states.is_exists(username).await {
         Ok(data) => {

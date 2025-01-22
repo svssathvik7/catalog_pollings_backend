@@ -8,7 +8,10 @@ use log::error;
 use mongodb::bson::oid::ObjectId;
 use nanoid::nanoid;
 use serde::Deserialize;
-use std::{collections::HashMap, sync::Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 #[derive(Deserialize)]
 struct PaginationParams {
@@ -25,7 +28,8 @@ use crate::{
 };
 
 #[actix_web::post("/new")]
-pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Responder {
+pub async fn create_poll(req: Json<NewPollRequest>, db: Data<Arc<Mutex<DB>>>) -> impl Responder {
+    let db = db.lock().unwrap();
     let poll_data = req.into_inner();
     let mut session = db.client.start_session().await.unwrap();
     session.start_transaction().await.unwrap();
@@ -93,9 +97,10 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
 #[actix_web::post("/{id}")]
 pub async fn get_poll(
     id: Path<String>,
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     Json(username): Json<HashMap<String, String>>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let username = match username.get("username") {
         Some(username) => username,
         None => {
@@ -121,9 +126,10 @@ pub async fn get_poll(
 #[actix_web::post("/{id}/close")]
 pub async fn close_poll(
     id: Path<String>,
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let username = match req.get("username") {
         Some(username) => username.clone(),
         None => {
@@ -150,9 +156,10 @@ pub async fn close_poll(
 #[actix_web::post("/{id}/delete")]
 pub async fn delete_poll(
     id: Path<String>,
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let username = match req.get("username") {
         Some(username) => username.clone(),
         None => {
@@ -179,10 +186,11 @@ pub async fn delete_poll(
 #[actix_web::post("/{id}/reset")]
 pub async fn reset_poll(
     id: Path<String>,
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     Json(req): Json<HashMap<String, String>>,
     broadcaster: Data<Mutex<Broadcaster>>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let username = match req.get("username") {
         Some(username) => username.clone(),
         None => {
@@ -222,11 +230,12 @@ pub async fn reset_poll(
 
 #[actix_web::post("/{id}/vote")]
 pub async fn cast_vote(
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     id: Path<String>,
     broadcaster: Data<Mutex<Broadcaster>>,
     Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     // 1. Extract and validate username
     let username = match req.get("username") {
         Some(username) => username.to_string(),
@@ -296,10 +305,11 @@ pub async fn cast_vote(
 
 #[actix_web::get("/user/{username}")]
 pub async fn get_user_polls(
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     web::Query(params): web::Query<PaginationParams>,
     username: Path<String>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(5);
     let sort_by = params.sort_by.unwrap_or("created_at".to_string());
@@ -342,7 +352,8 @@ pub async fn get_user_polls(
 }
 
 #[actix_web::get("/{id}/results")]
-pub async fn get_poll_result(db: Data<DB>, id: Path<String>) -> impl Responder {
+pub async fn get_poll_result(db: Data<Arc<Mutex<DB>>>, id: Path<String>) -> impl Responder {
+    let db = db.lock().unwrap();
     let poll_id = id.as_str();
     match db.polls.get_poll_results(poll_id).await {
         Ok(poll_result) => {

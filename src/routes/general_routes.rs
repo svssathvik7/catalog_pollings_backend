@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use actix_web::{
     web::{self, Data, ServiceConfig},
     HttpResponse, Responder,
@@ -14,9 +16,10 @@ struct PaginationParams {
 
 #[actix_web::get("/live")]
 pub async fn get_live_polls(
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     web::Query(params): web::Query<PaginationParams>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(2);
 
@@ -45,9 +48,10 @@ pub async fn get_live_polls(
 
 #[actix_web::get("/closed")]
 pub async fn get_closed_polls(
-    db: Data<DB>,
+    db: Data<Arc<Mutex<DB>>>,
     web::Query(params): web::Query<PaginationParams>,
 ) -> impl Responder {
+    let db = db.lock().unwrap();
     let page = params.page.unwrap_or(1);
     let per_page = params.per_page.unwrap_or(10);
 

@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use auth_state_repo::AuthStateRepo;
 use log::debug;
@@ -26,7 +26,7 @@ pub struct DB {
 }
 
 impl DB {
-    pub async fn init(app_config: Arc<AppConfig>) -> Self {
+    pub async fn init(app_config: Arc<AppConfig>) -> Arc<Mutex<Self>> {
         let mongo_uri = &app_config.db_url;
         let client = Client::with_uri_str(mongo_uri)
             .await
@@ -38,13 +38,14 @@ impl DB {
         let users_collection = UserRepo::init(&database).await;
         let options_collection = OptionRepo::init(&database).await;
         let polls_collection = PollRepo::init(&database).await;
-        DB {
+        let db_instance = DB {
             client,
             reg_states: reg_state_collection,
             users: users_collection,
             auth_states: auth_state_collection,
             options: options_collection,
             polls: polls_collection,
-        }
+        };
+        Arc::new(Mutex::new(db_instance))
     }
 }
