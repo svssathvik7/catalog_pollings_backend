@@ -1,17 +1,17 @@
-use std::sync::Arc;
-
 use actix_cors::Cors;
 use actix_web::{
+    http::StatusCode,
     middleware::from_fn,
     web::{scope, Data},
-    App, HttpServer,
+    App, HttpResponse, HttpServer, Responder,
 };
 use config::app_config::AppConfig;
 use db::DB;
-use dotenv::dotenv;
 use middlewares::authenticate::authenticate_user;
 use routes::{auth_routes, general_routes, poll_routes, sse_route};
+use serde_json::json;
 use sse::Broadcaster;
+use std::sync::Arc;
 use utils::jwt::JWT;
 use webauthn::config_webauthn;
 pub mod config;
@@ -23,9 +23,17 @@ pub mod sse;
 pub mod utils;
 pub mod webauthn;
 
+#[actix_web::get("/")]
+pub async fn greet() -> impl Responder {
+    HttpResponse::Ok().status(StatusCode::OK).json(json!({
+        "status": "Ok",
+        "result": "Welcome to catalog pollings"
+    }))
+}
+
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
-    dotenv().ok();
+    env_logger::init();
     let app_configs = Arc::new(AppConfig::init());
     let client_origin = app_configs.client_origin.clone();
     let mongodb = Data::new(DB::init(app_configs.clone()).await);
@@ -41,6 +49,7 @@ async fn main() -> Result<(), std::io::Error> {
                     .allowed_origin(&client_origin)
                     .supports_credentials(),
             )
+            .service(greet)
             .service(
                 scope("/api")
                     .service(scope("/p").configure(general_routes::init))

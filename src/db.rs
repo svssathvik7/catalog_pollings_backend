@@ -1,7 +1,6 @@
 use std::sync::{Arc, Mutex};
 
 use auth_state_repo::AuthStateRepo;
-use log::debug;
 use mongodb::Client;
 use options_repo::OptionRepo;
 use polls_repo::PollRepo;
@@ -31,7 +30,7 @@ impl DB {
         let client = Client::with_uri_str(mongo_uri)
             .await
             .expect("Failed connecting to the database");
-        debug!("Connected to database!");
+        println!("Connected to database!");
         let database = client.database("polling-app");
         let reg_state_collection = RegStateRepo::init(&database).await;
         let auth_state_collection = AuthStateRepo::init(&database).await;

@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use actix_web::{
     cookie::{time::Duration, Cookie, SameSite},
@@ -21,14 +24,21 @@ use crate::{
     utils::jwt::JWT,
 };
 
-#[actix_web::post("/register/start/{username}")]
+#[actix_web::post("/register/start")]
 pub async fn start_registration(
     db: Data<Arc<Mutex<DB>>>,
-    username: Path<String>,
     webauthn: Data<Webauthn>,
+    Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
     let db = db.lock().unwrap();
-    let username = username.as_str();
+    let username = match req.get("username") {
+        Some(username) => username,
+        None => {
+            return HttpResponse::BadRequest()
+                .status(StatusCode::BAD_REQUEST)
+                .json("NO username found!");
+        }
+    };
     let users_match = db.users.search_by_username(username).await;
 
     let uuid = match users_match {
