@@ -5,9 +5,12 @@ use actix_web::{
     App, HttpServer,
 };
 use db::DB;
+use dotenv::dotenv;
+use log::error;
 use middlewares::authenticate::authenticate_user;
 use routes::{auth_routes, general_routes, poll_routes, sse_route};
 use sse::Broadcaster;
+use std::env;
 use utils::jwt::JWT;
 use webauthn::config_webauthn;
 pub mod db;
@@ -20,6 +23,11 @@ pub mod webauthn;
 
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
+    dotenv().ok();
+    let client_origin = env::var("RP_ORIGIN").unwrap_or_else(|_| {
+        error!("No RP ORIGIN found");
+        "http://localhost:3000".to_string()
+    });
     let mongodb = Data::new(DB::init().await);
     let webauthn = Data::new(config_webauthn().unwrap());
     let jwt = Data::new(JWT::init());
@@ -30,7 +38,7 @@ async fn main() -> Result<(), std::io::Error> {
                 Cors::default()
                     .allow_any_header()
                     .allow_any_method()
-                    .allowed_origin("http://localhost:3000")
+                    .allowed_origin(&client_origin)
                     .supports_credentials(),
             )
             .service(
