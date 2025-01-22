@@ -4,6 +4,7 @@ use actix_web::{
     web::{Data, Json, Path, ServiceConfig},
     HttpResponse, Responder,
 };
+use log::error;
 use mongodb::bson::oid::ObjectId;
 use webauthn_rs::{
     prelude::{
@@ -35,10 +36,7 @@ pub async fn start_registration(
         }
         Ok(None) => Uuid::new_v4(),
         Err(e) => {
-            eprintln!(
-                "Error searching user with username {:?} : {:?}",
-                username, e
-            );
+            error!("Error searching user with username {} : {}", username, e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error fetching user from db");
@@ -49,7 +47,7 @@ pub async fn start_registration(
     {
         Ok(data) => data,
         Err(e) => {
-            eprint!("Error creating challange and reg state {:?}", e);
+            error!("Error creating challange and reg state {}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed to create registratino challange and reg state");
@@ -59,7 +57,7 @@ pub async fn start_registration(
     let reg_state = match serde_json::to_value(&reg_state) {
         Ok(value) => value,
         Err(e) => {
-            eprint!("Error serializing reg_state {:?}", e);
+            error!("Error serializing reg_state {}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error serializing reg_state");
@@ -75,7 +73,7 @@ pub async fn start_registration(
     let result = match db.reg_states.insert(new_user_reg_state).await {
         Ok(_success) => HttpResponse::Ok().status(StatusCode::CREATED).json(ccr),
         Err(e) => {
-            eprint!("Error storing reg state to db {:?}", e);
+            error!("Error storing reg state to db {}", e);
             HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error storing reg state to db ")
@@ -103,7 +101,7 @@ pub async fn finish_registration(
             }
         }
         Err(e) => {
-            eprint!("Error registering {:?}", e);
+            error!("Error registering {}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("No registration was initiated due to internal server error");
@@ -117,7 +115,7 @@ pub async fn finish_registration(
                 .json("No initiation of registration found!");
         }
         Err(e) => {
-            eprint!("Failed getting reg state {:?}", e);
+            error!("Failed getting reg state {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed getting reg state");
@@ -127,7 +125,7 @@ pub async fn finish_registration(
     let deserialize_reg_state: PasskeyRegistration = match serde_json::from_value(reg_state_match) {
         Ok(data) => data,
         Err(e) => {
-            eprint!("Failed deserializing registration state {:?}", e);
+            error!("Failed deserializing registration state {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed deserializing registration state");
@@ -137,7 +135,7 @@ pub async fn finish_registration(
     let pass_key = match webauthn.finish_passkey_registration(&request, &deserialize_reg_state) {
         Ok(key) => key,
         Err(e) => {
-            eprint!("Failed generating the passkey {:?}", e);
+            error!("Failed generating the passkey {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed generating the passkey");
@@ -148,7 +146,7 @@ pub async fn finish_registration(
     let sk = match serde_json::to_value(pass_key) {
         Ok(data) => data,
         Err(e) => {
-            eprint!("Failed serializing the key {:?}", e);
+            error!("Failed serializing the key {}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed serializing the key");
@@ -167,7 +165,7 @@ pub async fn finish_registration(
             .status(StatusCode::CREATED)
             .json(format!("Successfully registered {}", username)),
         Err(e) => {
-            eprint!("Failed registering the user! {:?}", e);
+            error!("Failed registering the user! {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed registering the user, try again after sometime");
@@ -177,7 +175,7 @@ pub async fn finish_registration(
     let _del_reg_state = match db.reg_states.delete_by_username(username).await {
         Ok(response) => response,
         Err(e) => {
-            eprint!("Error deleting the reg state of {:?} {:?}", username, e);
+            error!("Error deleting the reg state of {} {}", username, e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed deleting the user reg state, try again after sometime");
@@ -206,7 +204,7 @@ pub async fn start_authentication(
             }
         }
         Err(e) => {
-            eprint!("No user found to sign in! {:?}", e);
+            error!("No user found to sign in! {:?}", e);
             return HttpResponse::NotFound()
                 .status(StatusCode::NOT_FOUND)
                 .json("No user found to sign in");
@@ -222,7 +220,7 @@ pub async fn start_authentication(
                 .json("Error finding a user");
         }
         Err(e) => {
-            eprint!("Error searching user! {:?}", e);
+            error!("Error searching user! {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error finding a user");
@@ -233,7 +231,7 @@ pub async fn start_authentication(
     let sk: Vec<Passkey> = match serde_json::from_value(user_sk) {
         Ok(key) => vec![key],
         Err(e) => {
-            eprint!("Error deserializing sk {:?}", e);
+            error!("Error deserializing sk {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error deserializing sk");
@@ -243,7 +241,7 @@ pub async fn start_authentication(
     let (rcr, auth_state) = match webauthn.start_passkey_authentication(&sk) {
         Ok(data) => data,
         Err(e) => {
-            eprint!("Error generating auth challange {:?}", e);
+            error!("Error generating auth challange {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error generating auth challange");
@@ -253,7 +251,7 @@ pub async fn start_authentication(
     let serial_auth_state = match serde_json::to_value(auth_state) {
         Ok(serial_auth_state) => serial_auth_state,
         Err(e) => {
-            eprint!("Error serialzing auth state {:?}", e);
+            error!("Error serialzing auth state {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error serialzing auth state");
@@ -268,7 +266,7 @@ pub async fn start_authentication(
     let _result = match db.auth_states.insert(auth_state_entry).await {
         Ok(inserted) => inserted,
         Err(e) => {
-            eprint!("Error writing auth state to db {:?}", e);
+            error!("Error writing auth state to db {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error writing auth state to db");
@@ -297,7 +295,7 @@ pub async fn finish_authentication(
             }
         }
         Err(e) => {
-            eprint!("Error authenticating {:?}", e);
+            error!("Error authenticating {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("No user found to finish authentication");
@@ -312,7 +310,7 @@ pub async fn finish_authentication(
                 .json("No user found to finish authentication");
         }
         Err(e) => {
-            eprint!("Error fetching auth state {:?}", e);
+            error!("Error fetching auth state {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error fetching auth state");
@@ -322,7 +320,7 @@ pub async fn finish_authentication(
     let deserialized_as: PasskeyAuthentication = match serde_json::from_value(user_auth_state) {
         Ok(data) => data,
         Err(e) => {
-            eprint!("Error deserialzing auth state {:?}", e);
+            error!("Error deserialzing auth state {}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error deserialzing auth state");
@@ -332,7 +330,7 @@ pub async fn finish_authentication(
     let _auth_result = match webauthn.finish_passkey_authentication(&req, &deserialized_as) {
         Ok(result) => result,
         Err(e) => {
-            eprint!("Error authenticating {:?}", e);
+            error!("Error authenticating {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error authenticating");
@@ -342,7 +340,7 @@ pub async fn finish_authentication(
     let _del_auth_state = match db.auth_states.delete_by_username(username).await {
         Ok(response) => response,
         Err(e) => {
-            eprint!("Error deleting the auth state of {:?} {:?}", username, e);
+            error!("Error deleting the auth state of {:?} {:?}", username, e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed deleting the user auth state, try again after sometime");
@@ -357,7 +355,7 @@ pub async fn finish_authentication(
     let jwt_token = match jwt.sign(uuid) {
         Ok(token) => token,
         Err(e) => {
-            eprint!("Error generating the jwt token {:?} {:?}", username, e);
+            error!("Error generating the jwt token {} {}", username, e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error generating the jwt token");
