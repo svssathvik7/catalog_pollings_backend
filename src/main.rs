@@ -49,7 +49,7 @@ async fn main() -> Result<(), std::io::Error> {
             .app_data(jwt.clone())
             .app_data(broadcaster.clone())
     })
-    .bind("localhost:5000")?
+    .bind(("0.0.0.0", 3000))?
     .run()
     .await
 }
