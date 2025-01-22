@@ -343,7 +343,7 @@ pub async fn get_user_polls(
 #[actix_web::get("/{id}/results")]
 pub async fn get_poll_result(db: Data<DB>, id: Path<String>) -> impl Responder {
     let poll_id = id.as_str();
-    let result = match db.polls.get_poll_results(poll_id).await {
+    match db.polls.get_poll_results(poll_id).await {
         Ok(poll_result) => {
             return HttpResponse::Ok().status(StatusCode::OK).json(poll_result);
         }

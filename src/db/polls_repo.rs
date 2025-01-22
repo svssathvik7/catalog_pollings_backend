@@ -130,7 +130,7 @@ impl PollRepo {
         if let Some(doc) = cursor.try_next().await? {
             // Deserialize the document into a Poll struct
             let poll: GetPollResponse = bson::from_document(doc)?;
-            let mut has_voted: bool = true;
+            let has_voted: bool;
             if username.is_empty() {
                 has_voted = true;
             } else {
