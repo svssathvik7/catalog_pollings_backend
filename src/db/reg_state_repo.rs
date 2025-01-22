@@ -1,10 +1,10 @@
+use log::error;
 use mongodb::{
     bson::doc,
     results::{DeleteResult, InsertOneResult},
     Collection, Database, IndexModel,
 };
 use serde::{Deserialize, Serialize};
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegState {
     pub username: String,
@@ -29,7 +29,7 @@ impl RegStateRepo {
             .build();
 
         if let Err(e) = reg_state_collection.create_index(index).await {
-            eprintln!("Failed to create index on `username`: {:?}", e);
+            error!("Failed to create index on `username`: {:?}", e);
         }
         Self {
             collection: reg_state_collection,
@@ -50,7 +50,7 @@ impl RegStateRepo {
                 }
             }
             Err(e) => {
-                eprint!("Error deleting a duplicate record {:?}", e);
+                error!("Error deleting a duplicate record {:?}", e);
             }
         };
         let result = self.collection.insert_one(reg_state_entry).await;
@@ -63,7 +63,6 @@ impl RegStateRepo {
     ) -> Result<Option<RegState>, mongodb::error::Error> {
         let filter = doc! {"username": username};
         let result = self.collection.find_one(filter).await;
-        print!("found {:?}", result);
         result
     }
 
