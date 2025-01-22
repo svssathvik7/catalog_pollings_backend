@@ -57,7 +57,7 @@ async fn main() -> Result<(), std::io::Error> {
             .app_data(jwt.clone())
             .app_data(broadcaster.clone())
     })
-    .bind(("0.0.0.0", 5000))?
+    .bind((app_configs.server_addr.clone(), 5000))?
     .run()
     .await
 }
