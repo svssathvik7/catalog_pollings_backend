@@ -1,14 +1,14 @@
-use std::{collections::HashMap, sync::Mutex};
-
 use actix_web::{
     http::StatusCode,
     web::{self, Data, Json, Path, ServiceConfig},
     HttpResponse, Responder,
 };
 use chrono::Utc;
+use log::error;
 use mongodb::bson::oid::ObjectId;
 use nanoid::nanoid;
 use serde::Deserialize;
+use std::{collections::HashMap, sync::Mutex};
 
 #[derive(Deserialize)]
 struct PaginationParams {
@@ -53,13 +53,13 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
                         true
                     } else {
                         session.abort_transaction().await.unwrap();
-                        eprintln!("Insert succeeded, but no ObjectId returned!");
+                        error!("Insert succeeded, but no ObjectId returned!");
                         false
                     }
                 }
                 Err(e) => {
                     session.abort_transaction().await.unwrap();
-                    eprint!("Error writing option! {:?}", e);
+                    error!("Error writing option! {:?}", e);
                     false
                 }
             };
@@ -77,7 +77,7 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<DB>) -> impl Respon
     let _poll_insert_result = match db.polls.insert(new_poll).await {
         Ok(inserted_poll) => inserted_poll,
         Err(e) => {
-            eprint!("Error inserting poll {:?}", e);
+            error!("Error inserting poll {:?}", e);
             session.abort_transaction().await.unwrap();
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -107,7 +107,7 @@ pub async fn get_poll(
     let poll_data = match db.polls.get(id.as_str(), &username).await {
         Ok(poll_response) => poll_response,
         Err(e) => {
-            eprint!("Error finding poll {:?}", e);
+            error!("Error finding poll {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .body("Failed fetching poll :(");
@@ -139,7 +139,7 @@ pub async fn close_poll(
                 .json("Poll closed!");
         }
         Err(e) => {
-            eprint!("Error deleting poll {:?}", e);
+            error!("Error deleting poll {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed closing poll, try again later!");
@@ -168,7 +168,7 @@ pub async fn delete_poll(
                 .json("Poll deleted");
         }
         Err(e) => {
-            eprintln!("Error deleting the poll! {:?}", e);
+            error!("Error deleting the poll! {:?}", e);
             return HttpResponse::BadRequest()
                 .status(StatusCode::BAD_REQUEST)
                 .json("Failed deleting the poll!");
@@ -212,7 +212,7 @@ pub async fn reset_poll(
                 .json("Poll reset successfully!");
         }
         Err(e) => {
-            eprintln!("Error resetting poll! {:?}", e);
+            error!("Error resetting poll! {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Couldn't reset poll!");
@@ -243,7 +243,8 @@ pub async fn cast_vote(
             // Convert option_id string to ObjectId
             match ObjectId::parse_str(option_id) {
                 Ok(id) => id,
-                Err(_) => {
+                Err(e) => {
+                    error!("Error fetchin option in cast vote {}", e);
                     return HttpResponse::BadRequest()
                         .status(StatusCode::BAD_REQUEST)
                         .json("Invalid option ID format!");
@@ -285,7 +286,7 @@ pub async fn cast_vote(
             .status(StatusCode::BAD_REQUEST)
             .json("Unable to cast vote. Poll might be closed or you've already voted."),
         Err(e) => {
-            eprintln!("Vote casting error: {:?}", e);
+            error!("Vote casting error: {}", e);
             HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Internal error while casting vote")
@@ -293,7 +294,7 @@ pub async fn cast_vote(
     }
 }
 
-#[actix_web::get("/user/{username}")] // GET /polls/user
+#[actix_web::get("/user/{username}")]
 pub async fn get_user_polls(
     db: Data<DB>,
     web::Query(params): web::Query<PaginationParams>,
@@ -316,7 +317,7 @@ pub async fn get_user_polls(
     {
         Ok(polls) => polls,
         Err(e) => {
-            eprintln!("Error fetching user polls: {:?}", e);
+            error!("Error fetching user polls: {}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Failed to fetch user polls");
@@ -348,7 +349,7 @@ pub async fn get_poll_result(db: Data<DB>, id: Path<String>) -> impl Responder {
             return HttpResponse::Ok().status(StatusCode::OK).json(poll_result);
         }
         Err(e) => {
-            eprintln!("Error fetching poll results! {:?}", e);
+            error!("Error fetching poll results! {:?}", e);
             return HttpResponse::InternalServerError()
                 .status(StatusCode::INTERNAL_SERVER_ERROR)
                 .json("Error fetching poll results");
