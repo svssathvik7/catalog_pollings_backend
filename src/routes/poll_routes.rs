@@ -1,7 +1,6 @@
 use actix_web::{
-    http::StatusCode,
     web::{self, Data, Json, Path, ServiceConfig},
-    HttpResponse, Responder,
+    Responder,
 };
 use chrono::Utc;
 use log::error;
@@ -25,6 +24,7 @@ use crate::{
     db::{options_repo::OptionModel, polls_repo::Poll, DB},
     models::poll_api_model::{NewPollRequest, PollResults},
     sse::Broadcaster,
+    utils::json_responder::Response,
 };
 
 #[actix_web::post("/new")]
@@ -38,9 +38,7 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<Arc<Mutex<DB>>>) ->
     let options = if poll_data.options.len() >= 2 {
         poll_data.options
     } else {
-        return HttpResponse::BadRequest()
-            .status(StatusCode::BAD_REQUEST)
-            .json("Minimum two options are required to create the poll!");
+        return Response::<String>::error("Minimum two options are needed!");
     };
     let mut option_inserted = true;
     for option in options {
@@ -78,20 +76,16 @@ pub async fn create_poll(req: Json<NewPollRequest>, db: Data<Arc<Mutex<DB>>>) ->
         is_open: true,
         voters: Vec::new(),
     };
-    let _poll_insert_result = match db.polls.insert(new_poll).await {
+    let poll_insert_result = match db.polls.insert(new_poll).await {
         Ok(inserted_poll) => inserted_poll,
         Err(e) => {
             error!("Error inserting poll {:?}", e);
             session.abort_transaction().await.unwrap();
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body("Error creating poll!");
+            return Response::<String>::error("Error creating poll!");
         }
     };
     session.commit_transaction().await.unwrap();
-    HttpResponse::Ok()
-        .status(StatusCode::CREATED)
-        .body("Successfully created poll!")
+    Response::ok(poll_insert_result)
 }
 
 #[actix_web::post("/{id}")]
@@ -104,23 +98,17 @@ pub async fn get_poll(
     let username = match username.get("username") {
         Some(username) => username,
         None => {
-            return HttpResponse::BadRequest()
-                .status(StatusCode::NOT_FOUND)
-                .body("Need username!");
+            return Response::<String>::error("Need username");
         }
     };
     let poll_data = match db.polls.get(id.as_str(), &username).await {
         Ok(poll_response) => poll_response,
         Err(e) => {
             error!("Error finding poll {:?}", e);
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .body("Failed fetching poll :(");
+            return Response::<String>::error("Failed fetching poll!");
         }
     };
-    HttpResponse::Ok()
-        .status(StatusCode::ACCEPTED)
-        .json(poll_data)
+    Response::ok(poll_data)
 }
 
 #[actix_web::post("/{id}/close")]
@@ -133,22 +121,16 @@ pub async fn close_poll(
     let username = match req.get("username") {
         Some(username) => username.clone(),
         None => {
-            return HttpResponse::BadRequest()
-                .status(StatusCode::FORBIDDEN)
-                .json("Owner username required!");
+            return Response::<String>::error("Owner username required");
         }
     };
     let _close_poll = match db.polls.close_poll(id.as_str(), &username).await {
         Ok(_closed) => {
-            return HttpResponse::Ok()
-                .status(StatusCode::ACCEPTED)
-                .json("Poll closed!");
+            return Response::ok("Poll closed!");
         }
         Err(e) => {
             error!("Error deleting poll {:?}", e);
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Failed closing poll, try again later!");
+            return Response::<String>::error("Failed closing poll, try again later!");
         }
     };
 }
@@ -163,22 +145,16 @@ pub async fn delete_poll(
     let username = match req.get("username") {
         Some(username) => username.clone(),
         None => {
-            return HttpResponse::BadRequest()
-                .status(StatusCode::FORBIDDEN)
-                .json("Owner username required!");
+            return Response::<String>::error("Owner username required");
         }
     };
     let _is_poll_deleted = match db.polls.delete(id.as_str(), &username).await {
         Ok(_) => {
-            return HttpResponse::Ok()
-                .status(StatusCode::ACCEPTED)
-                .json("Poll deleted");
+            return Response::ok("Poll deleted!");
         }
         Err(e) => {
             error!("Error deleting the poll! {:?}", e);
-            return HttpResponse::BadRequest()
-                .status(StatusCode::BAD_REQUEST)
-                .json("Failed deleting the poll!");
+            return Response::<String>::error("Failed deleting poll!");
         }
     };
 }
@@ -194,9 +170,7 @@ pub async fn reset_poll(
     let username = match req.get("username") {
         Some(username) => username.clone(),
         None => {
-            return HttpResponse::BadRequest()
-                .status(StatusCode::FORBIDDEN)
-                .json("Owner username required!");
+            return Response::<String>::error("Owner username required!");
         }
     };
 
@@ -215,15 +189,11 @@ pub async fn reset_poll(
                 .lock()
                 .unwrap()
                 .send_poll_results(&poll_result_data);
-            return HttpResponse::Ok()
-                .status(StatusCode::ACCEPTED)
-                .json("Poll reset successfully!");
+            return Response::ok("Poll reset successfully!");
         }
         Err(e) => {
             error!("Error resetting poll! {:?}", e);
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Couldn't reset poll!");
+            return Response::<String>::error("Failed resetting poll!");
         }
     }
 }
@@ -240,9 +210,7 @@ pub async fn cast_vote(
     let username = match req.get("username") {
         Some(username) => username.to_string(),
         None => {
-            return HttpResponse::BadRequest()
-                .status(StatusCode::BAD_REQUEST)
-                .json("Failed casting vote! Require username!!");
+            return Response::<String>::error("Need username!");
         }
     };
 
@@ -254,16 +222,12 @@ pub async fn cast_vote(
                 Ok(id) => id,
                 Err(e) => {
                     error!("Error fetchin option in cast vote {}", e);
-                    return HttpResponse::BadRequest()
-                        .status(StatusCode::BAD_REQUEST)
-                        .json("Invalid option ID format!");
+                    return Response::<String>::error("Invalid option id!");
                 }
             }
         }
         None => {
-            return HttpResponse::BadRequest()
-                .status(StatusCode::BAD_REQUEST)
-                .json("Failed casting vote! Require vote option!!");
+            return Response::<String>::error("Require vote option!");
         }
     };
 
@@ -287,18 +251,14 @@ pub async fn cast_vote(
                 .lock()
                 .unwrap()
                 .send_poll_results(&poll_result_data);
-            return HttpResponse::Ok()
-                .status(StatusCode::ACCEPTED)
-                .json("Vote recorded successfully!");
+            return Response::ok("Vote recorded succesfully!");
         }
-        Ok(false) => HttpResponse::BadRequest()
-            .status(StatusCode::BAD_REQUEST)
-            .json("Unable to cast vote. Poll might be closed or you've already voted."),
+        Ok(false) => Response::<String>::error(
+            "Unable to cast vote. Poll might be closed or you've already voted.",
+        ),
         Err(e) => {
             error!("Vote casting error: {}", e);
-            HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Internal error while casting vote")
+            Response::<String>::error("Something went wrong!")
         }
     }
 }
@@ -328,9 +288,7 @@ pub async fn get_user_polls(
         Ok(polls) => polls,
         Err(e) => {
             error!("Error fetching user polls: {}", e);
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Failed to fetch user polls");
+            return Response::<String>::error("Failed fetching user polls!");
         }
     };
 
@@ -340,15 +298,13 @@ pub async fn get_user_polls(
         .await
         .unwrap();
 
-    HttpResponse::Ok()
-        .status(StatusCode::OK)
-        .json(serde_json::json!({
-            "polls": user_polls,
-            "page": page,
-            "per_page": per_page,
-            "total_polls": total_polls,
-            "total_pages": (total_polls as f64 / per_page as f64).ceil() as u64
-        }))
+    Response::ok(serde_json::json!({
+        "polls": user_polls,
+        "page": page,
+        "per_page": per_page,
+        "total_polls": total_polls,
+        "total_pages": (total_polls as f64 / per_page as f64).ceil() as u64
+    }))
 }
 
 #[actix_web::get("/{id}/results")]
@@ -357,13 +313,11 @@ pub async fn get_poll_result(db: Data<Arc<Mutex<DB>>>, id: Path<String>) -> impl
     let poll_id = id.as_str();
     match db.polls.get_poll_results(poll_id).await {
         Ok(poll_result) => {
-            return HttpResponse::Ok().status(StatusCode::OK).json(poll_result);
+            return Response::ok(poll_result);
         }
         Err(e) => {
             error!("Error fetching poll results! {:?}", e);
-            return HttpResponse::InternalServerError()
-                .status(StatusCode::INTERNAL_SERVER_ERROR)
-                .json("Error fetching poll results");
+            return Response::<String>::error("Error fetching poll results!");
         }
     };
 }
