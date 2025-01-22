@@ -1,11 +1,11 @@
-use std::error::Error;
-
+use log::error;
 use mongodb::{
     bson::{doc, oid::ObjectId},
     results::InsertOneResult,
     Collection, Database, IndexModel,
 };
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct User {
@@ -34,7 +34,7 @@ impl UserRepo {
             .build();
 
         if let Err(e) = users_collection.create_index(index).await {
-            eprintln!("Failed to create index on `username`: {:?}", e);
+            error!("Failed to create index on `username`: {:?}", e);
         }
         Self {
             collection: users_collection,
@@ -55,6 +55,7 @@ impl UserRepo {
         let result = match self.collection.find_one(filter).await? {
             Some(user) => user.id,
             None => {
+                error!("No user found!");
                 return Ok(None);
             }
         };
@@ -72,7 +73,7 @@ impl UserRepo {
         let exists = match self.collection.count_documents(filter).await {
             Ok(count) => Ok(count > 0),
             Err(e) => {
-                eprint!("Error counting documents with username {:?}", e);
+                error!("Error counting documents with username {:?}", e);
                 Ok(false)
             }
         };
