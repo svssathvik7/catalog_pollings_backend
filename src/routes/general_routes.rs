@@ -2,11 +2,11 @@ use std::sync::{Arc, Mutex};
 
 use actix_web::{
     web::{self, Data, ServiceConfig},
-    HttpResponse, Responder,
+    Responder,
 };
 use serde::Deserialize;
 
-use crate::db::DB;
+use crate::{db::DB, utils::json_responder::Response};
 
 #[derive(Deserialize)]
 struct PaginationParams {
@@ -26,18 +26,22 @@ pub async fn get_live_polls(
     // Fetch polls
     let polls = match db.polls.get_live_polls(page, per_page).await {
         Ok(polls) => polls,
-        Err(_) => {
-            return HttpResponse::InternalServerError().json("Failed to fetch closed polls");
+        Err(e) => {
+            eprintln!("Error fetching live polls {:?}", e);
+            return Response::<String>::error("Failed fetching live polls!");
         }
     };
 
     let total_polls = match db.polls.count_live_polls().await {
         Ok(count) => count,
-        Err(_) => 0,
+        Err(e) => {
+            eprintln!("Error fetching polls count! {:?}", e);
+            0
+        }
     };
 
     // Prepare response with pagination info
-    HttpResponse::Ok().json(serde_json::json!({
+    Response::ok(serde_json::json!({
         "polls": polls,
         "page": page,
         "per_page": per_page,
@@ -58,18 +62,22 @@ pub async fn get_closed_polls(
     // Fetch polls
     let polls = match db.polls.get_closed_polls(page, per_page).await {
         Ok(polls) => polls,
-        Err(_) => {
-            return HttpResponse::InternalServerError().json("Failed to fetch closed polls");
+        Err(e) => {
+            eprintln!("Error fetching closed polls {:?}", e);
+            return Response::<String>::error("Failed fetching closed polls!");
         }
     };
 
     let total_polls = match db.polls.count_closed_polls().await {
         Ok(count) => count,
-        Err(_) => 0,
+        Err(e) => {
+            eprintln!("Error fetching closed polls count {:?}", e);
+            0
+        }
     };
 
     // Prepare response with pagination info
-    HttpResponse::Ok().json(serde_json::json!({
+    Response::ok(serde_json::json!({
         "polls": polls,
         "page": page,
         "per_page": per_page,
