@@ -15,6 +15,7 @@ pub fn config_webauthn() -> Result<Webauthn, Box<dyn Error>> {
         error!("RP_ORIGIN env var not found");
         "http://localhost:3000".to_string()
     });
+    println!("{} {}", rp_id, rp_origin);
 
     // Parse the URL, logging an error if it fails
     let rp_origin = Url::parse(&rp_origin).map_err(|err| {
