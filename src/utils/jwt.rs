@@ -79,6 +79,5 @@ mod tests {
         let jwt = JWT::init();
         let token = jwt.sign("test-uuid".to_string());
         assert!(token.is_ok());
-        println!("Generated Token: {:?}", token.unwrap());
     }
 }

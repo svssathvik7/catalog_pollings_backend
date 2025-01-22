@@ -1,4 +1,4 @@
-use log::error;
+use log::{debug, error};
 use std::{error::Error, sync::Arc};
 use webauthn_rs::{prelude::Url, Webauthn, WebauthnBuilder};
 
@@ -8,7 +8,7 @@ pub fn config_webauthn(app_config: Arc<AppConfig>) -> Result<Webauthn, Box<dyn E
     let rp_id = &app_config.rp_id;
 
     let rp_origin = &app_config.rp_origin;
-    println!("{} {}", rp_id, rp_origin);
+    debug!("{} {}", rp_id, rp_origin);
 
     // Parse the URL, logging an error if it fails
     let rp_origin = Url::parse(&rp_origin).map_err(|err| {

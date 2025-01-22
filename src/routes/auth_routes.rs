@@ -191,7 +191,6 @@ pub async fn start_authentication(
     db: Data<DB>,
     webauthn: Data<Webauthn>,
 ) -> impl Responder {
-    println!("start reg");
     let username = username.as_str();
     let _does_user_exist = match db.users.is_exists(username).await {
         Ok(boolean_response) => {

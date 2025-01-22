@@ -142,7 +142,6 @@ impl PollRepo {
                 poll: Some(poll),
                 has_voted,
             };
-            // println!("{:?}", poll_response);
 
             Ok(poll_response)
         } else {
