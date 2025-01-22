@@ -1,10 +1,10 @@
+use log::{debug, error};
 use mongodb::{
     bson::doc,
     results::{DeleteResult, InsertOneResult},
     Collection, Database, IndexModel,
 };
 use serde::{Deserialize, Serialize};
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AuthState {
     pub username: String,
@@ -30,7 +30,7 @@ impl AuthStateRepo {
             .build();
 
         if let Err(e) = auth_state_collection.create_index(index).await {
-            eprintln!("Failed to create index on `username`: {:?}", e);
+            error!("Failed to create index on `username`: {:?}", e);
         }
 
         Self {
@@ -52,7 +52,7 @@ impl AuthStateRepo {
                 }
             }
             Err(e) => {
-                eprint!("Error deleting a duplicate record {:?}", e);
+                error!("Error deleting a duplicate record {:?}", e);
             }
         };
         let result = self.collection.insert_one(auth_state_entry).await;
@@ -65,7 +65,7 @@ impl AuthStateRepo {
     ) -> Result<Option<AuthState>, mongodb::error::Error> {
         let filter = doc! {"username": username};
         let result = self.collection.find_one(filter).await;
-        print!("found {:?}", result);
+        debug!("found {:?}", result);
         result
     }
 

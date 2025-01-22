@@ -1,13 +1,13 @@
-use std::{error::Error, str};
-
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
+use log::{debug, error};
 use mongodb::{
     bson::{self, doc, oid::ObjectId, Document},
     results::InsertOneResult,
     Collection, Database,
 };
 use serde::{Deserialize, Serialize};
+use std::{error::Error, str};
 
 use crate::models::poll_api_model::{PollOptionResult, PollResults};
 
@@ -87,7 +87,7 @@ impl PollRepo {
                 }
             }
             Err(e) => {
-                eprintln!("Error deleting poll: {:?}", e); // Log the error
+                error!("Error deleting poll: {:?}", e); // Log the error
                 Err(e) // Propagate the error to the caller
             }
         }
@@ -182,12 +182,12 @@ impl PollRepo {
             Ok(poll_response) => match poll_response.poll {
                 Some(poll) => poll,
                 None => {
-                    eprintln!("Didn't get matching poll!");
+                    error!("Didn't get matching poll!");
                     return Ok(false);
                 }
             },
             Err(e) => {
-                eprintln!("Error fetching poll: {:?}", e);
+                error!("Error fetching poll: {:?}", e);
                 return Ok(false);
             }
         };
@@ -195,7 +195,7 @@ impl PollRepo {
         // 2. Check poll status
         let is_open = poll_doc.is_open;
         if !is_open {
-            eprintln!("Poll closed!");
+            error!("Poll closed!");
             session.abort_transaction().await.unwrap();
             return Ok(false); // Poll is closed
         }
@@ -206,7 +206,7 @@ impl PollRepo {
         let option_exists = poll_options.iter().any(|option| option._id == option_id);
 
         if !option_exists {
-            eprintln!("No such option exists!");
+            error!("No such option exists!");
             session.abort_transaction().await.unwrap();
             return Ok(false); // Option not part of this poll
         }
@@ -215,7 +215,7 @@ impl PollRepo {
         let voters: Vec<String> = poll_doc.voters;
 
         if voters.contains(&username) {
-            eprintln!("Has already voted!");
+            error!("Has already voted!");
             session.abort_transaction().await.unwrap();
             return Ok(false); // User already voted
         }
@@ -261,6 +261,7 @@ impl PollRepo {
         {
             Ok(_document) => true,
             Err(e) => {
+                error!("Error closing poll {}", e);
                 return Err(e);
             }
         };
@@ -274,17 +275,19 @@ impl PollRepo {
         username: &str,
     ) -> Result<bool, mongodb::error::Error> {
         if !self.is_owner(poll_id, username).await {
+            debug!("Only owner can reset the poll!");
             return Ok(false);
         }
         let poll_match = match self.get(poll_id, username).await {
             Ok(poll_response) => match poll_response.poll {
                 Some(poll) => poll,
                 None => {
+                    debug!("No matching poll to reset");
                     return Ok(false);
                 }
             },
             Err(e) => {
-                eprintln!("Error resetting poll! {:?}", e);
+                error!("Error resetting poll! {:?}", e);
                 return Ok(false);
             }
         };
@@ -306,7 +309,10 @@ impl PollRepo {
 
         let result = match self.collection.update_one(filter, update).await {
             Ok(_) => true,
-            Err(e) => return Err(e),
+            Err(e) => {
+                error!("Error updating in reset poll {}", e);
+                return Err(e);
+            }
         };
 
         Ok(result)
@@ -682,7 +688,7 @@ impl PollRepo {
 
         // Get the first (and should be only) result
         if let Some(doc) = cursor.try_next().await? {
-            println!("{:?}", doc);
+            debug!("{}", doc);
             // Convert BSON document to our PollResults structure
             let id = doc.get_str("id")?.to_string();
             let title = doc.get_str("title")?.to_string();
@@ -700,7 +706,6 @@ impl PollRepo {
                     });
                 }
             }
-            println!("its last");
 
             Ok(Some(PollResults {
                 id,
