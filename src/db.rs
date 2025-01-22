@@ -1,12 +1,13 @@
-use std::env;
+use std::sync::Arc;
 
 use auth_state_repo::AuthStateRepo;
-use dotenv::dotenv;
 use mongodb::Client;
 use options_repo::OptionRepo;
 use polls_repo::PollRepo;
 use reg_state_repo::RegStateRepo;
 use users_repo::UserRepo;
+
+use crate::config::app_config::AppConfig;
 
 pub mod auth_state_repo;
 pub mod options_repo;
@@ -24,9 +25,8 @@ pub struct DB {
 }
 
 impl DB {
-    pub async fn init() -> Self {
-        dotenv().ok();
-        let mongo_uri = env::var("DB_URL").expect("No var named DB_URL found!");
+    pub async fn init(app_config: Arc<AppConfig>) -> Self {
+        let mongo_uri = &app_config.db_url;
         let client = Client::with_uri_str(mongo_uri)
             .await
             .expect("Failed connecting to the database");

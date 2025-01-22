@@ -1,20 +1,13 @@
-use dotenv::dotenv;
 use log::error;
-use std::{env, error::Error};
+use std::{error::Error, sync::Arc};
 use webauthn_rs::{prelude::Url, Webauthn, WebauthnBuilder};
 
-pub fn config_webauthn() -> Result<Webauthn, Box<dyn Error>> {
-    dotenv().ok();
+use crate::config::app_config::AppConfig;
 
-    let rp_id = env::var("RP_ID").unwrap_or_else(|_| {
-        error!("RP_ID env var not found");
-        "localhost".to_string()
-    });
+pub fn config_webauthn(app_config: Arc<AppConfig>) -> Result<Webauthn, Box<dyn Error>> {
+    let rp_id = &app_config.rp_id;
 
-    let rp_origin = env::var("RP_ORIGIN").unwrap_or_else(|_| {
-        error!("RP_ORIGIN env var not found");
-        "http://localhost:3000".to_string()
-    });
+    let rp_origin = &app_config.rp_origin;
     println!("{} {}", rp_id, rp_origin);
 
     // Parse the URL, logging an error if it fails

@@ -1,18 +1,20 @@
+use std::sync::Arc;
+
 use actix_cors::Cors;
 use actix_web::{
     middleware::from_fn,
     web::{scope, Data},
     App, HttpServer,
 };
+use config::app_config::AppConfig;
 use db::DB;
 use dotenv::dotenv;
-use log::error;
 use middlewares::authenticate::authenticate_user;
 use routes::{auth_routes, general_routes, poll_routes, sse_route};
 use sse::Broadcaster;
-use std::env;
 use utils::jwt::JWT;
 use webauthn::config_webauthn;
+pub mod config;
 pub mod db;
 pub mod middlewares;
 pub mod models;
@@ -24,9 +26,10 @@ pub mod webauthn;
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
     dotenv().ok();
-    let client_origin = "https://catalog-pollings.vercel.app";
-    let mongodb = Data::new(DB::init().await);
-    let webauthn = Data::new(config_webauthn().unwrap());
+    let app_configs = Arc::new(AppConfig::init());
+    let client_origin = app_configs.client_origin.clone();
+    let mongodb = Data::new(DB::init(app_configs.clone()).await);
+    let webauthn = Data::new(config_webauthn(app_configs.clone()).unwrap());
     let jwt = Data::new(JWT::init());
     let broadcaster = Broadcaster::create();
     HttpServer::new(move || {
