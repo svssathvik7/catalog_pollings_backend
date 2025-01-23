@@ -8,8 +8,7 @@ use tokio::time::{interval, Duration};
 use std::pin::Pin;
 use std::sync::Mutex;
 
-use crate::db::polls_repo::PollResponse;
-use crate::models::poll_api_model::PollResults;
+use crate::models::poll_api_model::{PollResponse, PollResults};
 
 pub struct Broadcaster {
     clients: Vec<Sender<Bytes>>,

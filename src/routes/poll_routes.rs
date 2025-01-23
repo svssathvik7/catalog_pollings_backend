@@ -7,13 +7,13 @@ use chrono::Utc;
 use log::error;
 use mongodb::bson::oid::ObjectId;
 use nanoid::nanoid;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
 };
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize, Debug)]
 struct PaginationParams {
     page: Option<u64>,
     per_page: Option<u64>,
@@ -293,8 +293,9 @@ pub async fn get_user_polls(
     username: Path<String>,
 ) -> impl Responder {
     let db = db.lock().unwrap();
+    println!("params - {:?}", params);
     let page = params.page.unwrap_or(1);
-    let per_page = params.per_page.unwrap_or(5);
+    let per_page = params.per_page.unwrap_or(4);
     let sort_by = params.sort_by.unwrap_or("created_at".to_string());
     let sort_order = params.sort_order.unwrap_or(-1);
     let user_polls = match db
@@ -323,6 +324,8 @@ pub async fn get_user_polls(
         .count_polls_by_username(&username.to_string())
         .await
         .unwrap();
+
+    println!("Total polls {}", total_polls);
 
     Response::ok(
         serde_json::json!({

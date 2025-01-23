@@ -9,9 +9,9 @@ use mongodb::{
 use serde::{Deserialize, Serialize};
 use std::{error::Error, str};
 
-use crate::models::poll_api_model::{PollOptionResult, PollResults};
+use crate::models::poll_api_model::{GetPollResponse, PollOptionResult, PollResponse, PollResults};
 
-use super::{options_repo::OptionModel, DB};
+use super::DB;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Poll {
@@ -27,30 +27,8 @@ pub struct Poll {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GetPollResponse {
-    pub id: String,
-    pub title: String,
-    pub owner_id: String,
-    pub options: Vec<OptionModel>,
-    pub total_votes: i64,
-    pub is_open: bool,
-    #[serde(skip_serializing)]
-    pub voters: Vec<String>,
-    #[serde(default = "Utc::now")]
-    pub created_at: DateTime<Utc>,
-    #[serde(default = "Utc::now")]
-    pub updated_at: DateTime<Utc>,
-}
-
 pub struct PollRepo {
     pub collection: Collection<Poll>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct PollResponse {
-    pub poll: Option<GetPollResponse>,
-    pub has_voted: bool,
 }
 
 impl PollRepo {
