@@ -34,6 +34,7 @@ pub struct GetPollResponse {
     pub owner_id: String,
     pub options: Vec<OptionModel>,
     pub is_open: bool,
+    #[serde(skip_serializing)]
     pub voters: Vec<String>,
     #[serde(default = "Utc::now")]
     pub created_at: DateTime<Utc>,
