@@ -33,6 +33,7 @@ pub struct GetPollResponse {
     pub title: String,
     pub owner_id: String,
     pub options: Vec<OptionModel>,
+    pub total_votes: usize,
     pub is_open: bool,
     #[serde(skip_serializing)]
     pub voters: Vec<String>,
@@ -122,7 +123,8 @@ impl PollRepo {
                     "created_at": 1,
                     "updated_at": 1,
                     "voters": 1,
-                    "id": 1
+                    "id": 1,
+                    "total_votes": {"$size": "$voters"}
                 }
             },
         ];
@@ -346,11 +348,6 @@ impl PollRepo {
                     "as": "options"
                 }
             },
-            doc! {
-                "$addFields": {
-                    "total_voters": { "$size": "$voters" }
-                }
-            },
             // Sort by total_voters in descending order
             doc! {
                 "$sort": {
@@ -372,6 +369,7 @@ impl PollRepo {
                     "title": 1,
                     "is_open": 1,
                     "voters": 1,
+                    "total_votes": {"$size": "$voters"},
                     "owner_id": "$owner_id",
                     "options": {
                         "$map": {
@@ -381,7 +379,6 @@ impl PollRepo {
                                 "_id": "$$option._id",
                                 "text": "$$option.text",
                                 "votes_count": "$$option.votes_count",
-                                "voters": "$$option.voters"
                             }
                         }
                     }
@@ -427,11 +424,6 @@ impl PollRepo {
                     "as": "options"
                 }
             },
-            doc! {
-                "$addFields": {
-                    "total_voters": { "$size": "$voters" }
-                }
-            },
             // Sort by total_voters in descending order
             doc! {
                 "$sort": {
@@ -454,6 +446,7 @@ impl PollRepo {
                     "voters": 1,
                     "is_open": 1,
                     "owner_id": 1,
+                    "total_votes": {"$size": "$voters"},
                     "options": {
                         "$map": {
                             "input": "$options",
@@ -462,7 +455,6 @@ impl PollRepo {
                                 "_id": "$$option._id",
                                 "text": "$$option.text",
                                 "votes_count": "$$option.votes_count",
-                                "voters": "$$option.voters"
                             }
                         }
                     }
@@ -554,14 +546,6 @@ impl PollRepo {
                     "as": "options"
                 }
             },
-            // Calculate total votes
-            doc! {
-                "$addFields": {
-                    "total_votes": {
-                        "$sum": "$options.votes_count"
-                    }
-                }
-            },
             sort_doc,
             // Apply pagination
             doc! {
@@ -581,6 +565,7 @@ impl PollRepo {
                     "created_at": 1,
                     "updated_at": 1,
                     "owner_id": 1,
+                    "total_votes": {"$size": "$voters"},
                     "options": {
                         "$map": {
                             "input": "$options",
@@ -589,7 +574,6 @@ impl PollRepo {
                                 "_id": "$$option._id",
                                 "text": "$$option.text",
                                 "votes_count": "$$option.votes_count",
-                                "voters": "$$option.voters"
                             }
                         }
                     }
@@ -640,22 +624,12 @@ impl PollRepo {
                     "as": "options"
                 }
             },
-            // Calculate total votes across all options
-            doc! {
-                "$addFields": {
-                    "total_votes": {
-                        "$toLong" : {
-                            "$sum": "$options.votes_count"
-                        }
-                    }
-                }
-            },
             // Project the final format
             doc! {
                 "$project": {
                     "_id": 0,
                     "id": 1,
-                    "total_votes": 1,
+                    "total_votes": {"$size": "$voters"},
                     "title": 1,
                     "options": {
                         "$map": {
