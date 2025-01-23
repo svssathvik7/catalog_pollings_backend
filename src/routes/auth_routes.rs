@@ -123,7 +123,7 @@ pub async fn finish_registration(
 
     let reg_state_match = db.reg_states.find_by_username(username).await;
     let reg_state_match = if let Ok(Some(doc_match)) = reg_state_match {
-        doc_match.reg_state;
+        doc_match.reg_state
     } else {
         eprintln!("Error at register finish!");
         return Response::<String>::error(
@@ -134,7 +134,7 @@ pub async fn finish_registration(
     let reg_state_match = match serde_json::to_value(reg_state_match) {
         Ok(serialized_reg_state) => serialized_reg_state,
         Err(e) => {
-            eprintln!("Error registering state {:?}", e);
+            error!("Error registering state {:?}", e);
             return Response::<()>::error(
                 "Error registering user!",
                 StatusCode::INTERNAL_SERVER_ERROR,
