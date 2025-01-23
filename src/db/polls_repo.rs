@@ -349,10 +349,15 @@ impl PollRepo {
                     "as": "options"
                 }
             },
+            doc! {
+                "$addFields": {
+                    "total_votes": { "$size": "$voters" }
+                }
+            },
             // Sort by total_voters in descending order
             doc! {
                 "$sort": {
-                    "total_voters": -1
+                    "total_votes": -1
                 }
             },
             // Pagination
@@ -370,7 +375,7 @@ impl PollRepo {
                     "title": 1,
                     "is_open": 1,
                     "voters": 1,
-                    "total_votes": {"$size": "$voters"},
+                    "total_votes": 1,
                     "owner_id": "$owner_id",
                     "options": {
                         "$map": {
@@ -425,10 +430,15 @@ impl PollRepo {
                     "as": "options"
                 }
             },
+            doc! {
+                "$addFields": {
+                    "total_votes": { "$size": "$voters" }
+                }
+            },
             // Sort by total_voters in descending order
             doc! {
                 "$sort": {
-                    "total_voters": -1
+                    "total_votes": -1
                 }
             },
             // Pagination
@@ -446,8 +456,8 @@ impl PollRepo {
                     "title": 1,
                     "voters": 1,
                     "is_open": 1,
+                    "total_votes": 1,
                     "owner_id": 1,
-                    "total_votes": {"$size": "$voters"},
                     "options": {
                         "$map": {
                             "input": "$options",
