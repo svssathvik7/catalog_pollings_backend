@@ -33,7 +33,7 @@ pub struct GetPollResponse {
     pub title: String,
     pub owner_id: String,
     pub options: Vec<OptionModel>,
-    pub total_votes: usize,
+    pub total_votes: i64,
     pub is_open: bool,
     #[serde(skip_serializing)]
     pub voters: Vec<String>,
@@ -195,7 +195,7 @@ impl PollRepo {
         };
 
         // 2. Check poll status
-        let is_open = poll_doc.is_open;
+        let is_open = poll_doc.is_open.clone();
         if !is_open {
             error!("Poll closed!");
             session.abort_transaction().await.unwrap();
@@ -218,6 +218,7 @@ impl PollRepo {
 
         if voters.contains(&username) {
             error!("Has already voted!");
+            println!("{:?} {:?}", voters, username);
             session.abort_transaction().await.unwrap();
             return Ok(false); // User already voted
         }
@@ -624,12 +625,21 @@ impl PollRepo {
                     "as": "options"
                 }
             },
+            doc! {
+                "$addFields": {
+                    "total_votes": {
+                        "$toLong" : {
+                            "$sum": "$options.votes_count"
+                        }
+                    }
+                }
+            },
             // Project the final format
             doc! {
                 "$project": {
                     "_id": 0,
                     "id": 1,
-                    "total_votes": {"$size": "$voters"},
+                    "total_votes": 1,
                     "title": 1,
                     "options": {
                         "$map": {
@@ -662,7 +672,7 @@ impl PollRepo {
 
         // Get the first (and should be only) result
         if let Some(doc) = cursor.try_next().await? {
-            debug!("{}", doc);
+            println!("{}", doc);
             // Convert BSON document to our PollResults structure
             let id = doc.get_str("id")?.to_string();
             let title = doc.get_str("title")?.to_string();

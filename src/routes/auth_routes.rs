@@ -208,14 +208,19 @@ pub async fn finish_registration(
     result
 }
 
-#[actix_web::post("/login/start/{username}")]
+#[actix_web::post("/login/start")]
 pub async fn start_authentication(
-    username: Path<String>,
     db: Data<Arc<Mutex<DB>>>,
     webauthn: Data<Webauthn>,
+    Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
-    let username = username.as_str();
     let db = db.lock().unwrap();
+    let username = match req.get("username") {
+        Some(username) => username,
+        None => {
+            return Response::<String>::error("No username found!", StatusCode::BAD_REQUEST);
+        }
+    };
     let _does_user_exist = match db.users.is_exists(username).await {
         Ok(boolean_response) => {
             if boolean_response {
