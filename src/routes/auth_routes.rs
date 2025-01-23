@@ -34,19 +34,22 @@ pub async fn start_registration(
     let username = match req.get("username") {
         Some(username) => username,
         None => {
-            return Response::<()>::error("No username found");
+            return Response::<()>::error("No username found", StatusCode::BAD_REQUEST);
         }
     };
     let users_match = db.users.search_by_username(username).await;
 
     let uuid = match users_match {
         Ok(Some(_user)) => {
-            return Response::<()>::error("Username already exists!");
+            return Response::<()>::error("Username already exists!", StatusCode::BAD_REQUEST);
         }
         Ok(None) => Uuid::new_v4(),
         Err(e) => {
             error!("Error searching user with username {} : {}", username, e);
-            return Response::<()>::error("Something went wrong!");
+            return Response::<()>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -55,7 +58,10 @@ pub async fn start_registration(
         Ok(data) => data,
         Err(e) => {
             error!("Error creating challange and reg state {}", e);
-            return Response::<()>::error("Something went wrong!");
+            return Response::<()>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
     // serialize the reg state
@@ -63,7 +69,10 @@ pub async fn start_registration(
         Ok(value) => value,
         Err(e) => {
             error!("Error serializing reg_state {}", e);
-            return Response::<()>::error("Something went wrong!");
+            return Response::<()>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -74,10 +83,10 @@ pub async fn start_registration(
     };
 
     let result = match db.reg_states.insert(new_user_reg_state).await {
-        Ok(_success) => Response::ok(ccr),
+        Ok(_success) => Response::ok(ccr, StatusCode::OK),
         Err(e) => {
             error!("Error storing reg state to db {}", e);
-            Response::<()>::error("Something went wrong")
+            Response::<()>::error("Something went wrong", StatusCode::INTERNAL_SERVER_ERROR)
         }
     };
     result
@@ -97,12 +106,18 @@ pub async fn finish_registration(
             if data {
                 data
             } else {
-                return Response::<String>::error("No registration init found!");
+                return Response::<String>::error(
+                    "No registration init found!",
+                    StatusCode::BAD_REQUEST,
+                );
             }
         }
         Err(e) => {
             error!("Error registering {}", e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -111,13 +126,19 @@ pub async fn finish_registration(
         doc_match.reg_state;
     } else {
         eprintln!("Error at register finish!");
-        return Response::<String>::error("Error registering user!");
+        return Response::<String>::error(
+            "Error registering user!",
+            StatusCode::INTERNAL_SERVER_ERROR,
+        );
     };
     let reg_state_match = match serde_json::to_value(reg_state_match) {
         Ok(serialized_reg_state) => serialized_reg_state,
         Err(e) => {
             eprintln!("Error registering state {:?}", e);
-            return Response::<()>::error("Error registering user!");
+            return Response::<()>::error(
+                "Error registering user!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -125,7 +146,10 @@ pub async fn finish_registration(
         Ok(data) => data,
         Err(e) => {
             error!("Failed deserializing registration state {:?}", e);
-            return Response::<String>::error("Error registering user!");
+            return Response::<String>::error(
+                "Error registering user!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -133,7 +157,10 @@ pub async fn finish_registration(
         Ok(key) => key,
         Err(e) => {
             error!("Failed generating the passkey {:?}", e);
-            return Response::<String>::error("Failed generating passkey");
+            return Response::<String>::error(
+                "Failed generating passkey",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -142,7 +169,10 @@ pub async fn finish_registration(
         Ok(data) => data,
         Err(e) => {
             error!("Failed serializing the key {}", e);
-            return Response::<String>::error("Failed generating passkey!");
+            return Response::<String>::error(
+                "Failed generating passkey!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -154,10 +184,13 @@ pub async fn finish_registration(
     };
 
     let result = match db.users.insert(new_user).await {
-        Ok(_inserted_user) => Response::ok(username),
+        Ok(_inserted_user) => Response::ok(username, StatusCode::CREATED),
         Err(e) => {
             error!("Failed registering the user! {:?}", e);
-            return Response::<String>::error("Failed registering user!");
+            return Response::<String>::error(
+                "Failed registering user!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -165,7 +198,10 @@ pub async fn finish_registration(
         Ok(response) => response,
         Err(e) => {
             error!("Error deleting the reg state of {} {}", username, e);
-            return Response::<String>::error("Error creating user!");
+            return Response::<String>::error(
+                "Error creating user!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -185,12 +221,15 @@ pub async fn start_authentication(
             if boolean_response {
                 boolean_response
             } else {
-                return Response::<String>::error("No user found!");
+                return Response::<String>::error("No user found!", StatusCode::BAD_REQUEST);
             }
         }
         Err(e) => {
             error!("Error finding user! {:?}", e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -199,7 +238,10 @@ pub async fn start_authentication(
         user.sk
     } else {
         eprintln!("Error fetching user!");
-        return Response::<String>::error("Error authenticating user!");
+        return Response::<String>::error(
+            "Error authenticating user!",
+            StatusCode::INTERNAL_SERVER_ERROR,
+        );
     };
 
     // for now just a single passkey
@@ -207,7 +249,10 @@ pub async fn start_authentication(
         Ok(key) => vec![key],
         Err(e) => {
             error!("Error deserializing sk {:?}", e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -215,7 +260,10 @@ pub async fn start_authentication(
         Ok(data) => data,
         Err(e) => {
             error!("Error generating auth challange {:?}", e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -223,7 +271,10 @@ pub async fn start_authentication(
         Ok(serial_auth_state) => serial_auth_state,
         Err(e) => {
             error!("Error serialzing auth state {:?}", e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -236,10 +287,13 @@ pub async fn start_authentication(
         Ok(inserted) => inserted,
         Err(e) => {
             error!("Error writing auth state to db {:?}", e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
-    return Response::ok(rcr);
+    return Response::ok(rcr, StatusCode::OK);
 }
 
 #[actix_web::post("/login/finish/{username}")]
@@ -257,19 +311,19 @@ pub async fn finish_authentication(
             if data {
                 data
             } else {
-                return Response::<String>::error("No user found!");
+                return Response::<String>::error("No user found!", StatusCode::BAD_REQUEST);
             }
         }
         Err(e) => {
             error!("Error authenticating {:?}", e);
-            return Response::<String>::error("No user found!");
+            return Response::<String>::error("No user found!", StatusCode::BAD_REQUEST);
         }
     };
 
     let user_auth_state = match db.auth_states.find_by_username(username).await {
         Ok(Some(data)) => data.auth_state,
         Ok(None) => {
-            return Response::<String>::error("No user found!");
+            return Response::<String>::error("No user found!", StatusCode::BAD_REQUEST);
         }
         Err(e) => {
             error!("Error fetching auth state {:?}", e);
@@ -283,7 +337,10 @@ pub async fn finish_authentication(
         Ok(data) => data,
         Err(e) => {
             error!("Error deserialzing auth state {}", e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -291,7 +348,10 @@ pub async fn finish_authentication(
         Ok(result) => result,
         Err(e) => {
             error!("Error authenticating {:?}", e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -299,7 +359,10 @@ pub async fn finish_authentication(
         Ok(response) => response,
         Err(e) => {
             error!("Error deleting the auth state of {:?} {:?}", username, e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -312,7 +375,10 @@ pub async fn finish_authentication(
         Ok(token) => token,
         Err(e) => {
             error!("Error generating the jwt token {} {}", username, e);
-            return Response::<String>::error("Something went wrong!");
+            return Response::<String>::error(
+                "Something went wrong!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 

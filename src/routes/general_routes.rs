@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use actix_web::{
+    http::StatusCode,
     web::{self, Data, ServiceConfig},
     Responder,
 };
@@ -28,7 +29,10 @@ pub async fn get_live_polls(
         Ok(polls) => polls,
         Err(e) => {
             eprintln!("Error fetching live polls {:?}", e);
-            return Response::<String>::error("Failed fetching live polls!");
+            return Response::<String>::error(
+                "Failed fetching live polls!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -41,13 +45,16 @@ pub async fn get_live_polls(
     };
 
     // Prepare response with pagination info
-    Response::ok(serde_json::json!({
-        "polls": polls,
-        "page": page,
-        "per_page": per_page,
-        "total_polls": total_polls,
-        "total_pages": (total_polls as f64 / per_page as f64).ceil() as u64
-    }))
+    Response::ok(
+        serde_json::json!({
+            "polls": polls,
+            "page": page,
+            "per_page": per_page,
+            "total_polls": total_polls,
+            "total_pages": (total_polls as f64 / per_page as f64).ceil() as u64
+        }),
+        StatusCode::OK,
+    )
 }
 
 #[actix_web::get("/closed")]
@@ -64,7 +71,10 @@ pub async fn get_closed_polls(
         Ok(polls) => polls,
         Err(e) => {
             eprintln!("Error fetching closed polls {:?}", e);
-            return Response::<String>::error("Failed fetching closed polls!");
+            return Response::<String>::error(
+                "Failed fetching closed polls!",
+                StatusCode::INTERNAL_SERVER_ERROR,
+            );
         }
     };
 
@@ -77,13 +87,16 @@ pub async fn get_closed_polls(
     };
 
     // Prepare response with pagination info
-    Response::ok(serde_json::json!({
-        "polls": polls,
-        "page": page,
-        "per_page": per_page,
-        "total_polls": total_polls,
-        "total_pages": (total_polls as f64 / per_page as f64).ceil() as u64
-    }))
+    Response::ok(
+        serde_json::json!({
+            "polls": polls,
+            "page": page,
+            "per_page": per_page,
+            "total_polls": total_polls,
+            "total_pages": (total_polls as f64 / per_page as f64).ceil() as u64
+        }),
+        StatusCode::OK,
+    )
 }
 
 pub fn init(cnf: &mut ServiceConfig) {
