@@ -6,7 +6,7 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio::time::{interval, Duration};
 
 use std::pin::Pin;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::models::poll_api_model::{PollResponse, PollResults};
 
@@ -15,8 +15,8 @@ pub struct Broadcaster {
 }
 
 impl Broadcaster {
-    pub fn create() -> Data<Mutex<Self>> {
-        let me = Data::new(Mutex::new(Broadcaster::new()));
+    pub fn create() -> Data<Arc<Mutex<Self>>> {
+        let me = Data::new(Arc::new(Mutex::new(Broadcaster::new())));
         me
     }
 

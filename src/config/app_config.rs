@@ -16,10 +16,9 @@ pub struct AppConfig {
 impl AppConfig {
     pub fn init() -> Self {
         dotenv().ok();
-        let is_dev = env::var("IS_DEV").map(|v| v == "true").unwrap_or_else(|_| {
-            error!("is_dev var not found!");
-            false
-        });
+        let is_dev = env::var("IS_DEV")
+            .unwrap_or_default()
+            .eq_ignore_ascii_case("true");
         let token_secret = env::var("TOKEN_SECRET").unwrap_or_else(|_| {
             error!("token_secret var not found!");
             String::from("Catalog")

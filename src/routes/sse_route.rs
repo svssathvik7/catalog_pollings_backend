@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::sse::Broadcaster;
 use actix_web::{
@@ -7,7 +7,7 @@ use actix_web::{
 };
 
 #[actix_web::get("/create-client")]
-pub async fn create_sse_client(broadcaster: Data<Mutex<Broadcaster>>) -> impl Responder {
+pub async fn create_sse_client(broadcaster: Data<Arc<Mutex<Broadcaster>>>) -> impl Responder {
     let mut broadcaster = broadcaster.lock().unwrap();
     let client = broadcaster.new_client();
     HttpResponse::Ok()

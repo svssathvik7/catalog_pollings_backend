@@ -180,7 +180,7 @@ pub async fn reset_poll(
     id: Path<String>,
     db: Data<Arc<Mutex<DB>>>,
     Json(req): Json<HashMap<String, String>>,
-    broadcaster: Data<Mutex<Broadcaster>>,
+    broadcaster: Data<Arc<Mutex<Broadcaster>>>,
 ) -> impl Responder {
     let db = db.lock().unwrap();
     let username = match req.get("username") {
@@ -221,7 +221,7 @@ pub async fn reset_poll(
 pub async fn cast_vote(
     db: Data<Arc<Mutex<DB>>>,
     id: Path<String>,
-    broadcaster: Data<Mutex<Broadcaster>>,
+    broadcaster: Data<Arc<Mutex<Broadcaster>>>,
     Json(req): Json<HashMap<String, String>>,
 ) -> impl Responder {
     let db = db.lock().unwrap();

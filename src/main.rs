@@ -33,7 +33,6 @@ pub async fn greet() -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
-    env_logger::init();
     let app_configs = Arc::new(AppConfig::init());
     let client_origin = app_configs.client_origin.clone();
     let mongodb = Data::new(DB::init(app_configs.clone()).await);
