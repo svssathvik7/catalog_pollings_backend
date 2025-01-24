@@ -1,3 +1,4 @@
+use anyhow::Result;
 use log::error;
 use mongodb::{
     bson::doc,
@@ -37,10 +38,7 @@ impl RegStateRepo {
         })
     }
 
-    pub async fn insert(
-        &self,
-        reg_state_entry: RegState,
-    ) -> Result<InsertOneResult, mongodb::error::Error> {
+    pub async fn insert(&self, reg_state_entry: RegState) -> Result<InsertOneResult> {
         let username = &reg_state_entry.username;
         let _reg_state_alread_exists = match self.is_exists(username).await {
             Ok(data) => {
@@ -54,31 +52,38 @@ impl RegStateRepo {
                 error!("Error deleting a duplicate record {:?}", e);
             }
         };
-        let result = self.collection.insert_one(reg_state_entry).await;
+        let result = self
+            .collection
+            .insert_one(reg_state_entry)
+            .await
+            .map_err(|e| {
+                error!("Error inserting reg state {}", e);
+                anyhow::Error::new(e)
+            });
         result
     }
 
-    pub async fn find_by_username(
-        &self,
-        username: &str,
-    ) -> Result<Option<RegState>, mongodb::error::Error> {
+    pub async fn find_by_username(&self, username: &str) -> Result<Option<RegState>> {
         let filter = doc! {"username": username};
-        let result = self.collection.find_one(filter).await;
+        let result = self.collection.find_one(filter).await.map_err(|e| {
+            error!("Error finding reg state by username {}", e);
+            anyhow::Error::new(e)
+        });
         result
     }
 
-    pub async fn is_exists(&self, username: &str) -> Result<bool, mongodb::error::Error> {
+    pub async fn is_exists(&self, username: &str) -> Result<bool> {
         let filter = doc! {"username": username};
 
         Ok(self.collection.find_one(filter).await?.is_some())
     }
 
-    pub async fn delete_by_username(
-        &self,
-        username: &str,
-    ) -> Result<DeleteResult, mongodb::error::Error> {
+    pub async fn delete_by_username(&self, username: &str) -> Result<DeleteResult> {
         let filter = doc! {"username": username};
-        let result = self.collection.delete_many(filter).await;
+        let result = self.collection.delete_many(filter).await.map_err(|e| {
+            error!("Error deleting reg state by username {}", e);
+            anyhow::Error::new(e)
+        });
         result
     }
 }
