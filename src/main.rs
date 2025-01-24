@@ -35,7 +35,7 @@ pub async fn greet() -> impl Responder {
 async fn main() -> Result<(), std::io::Error> {
     let app_configs = Arc::new(AppConfig::init());
     let client_origin = app_configs.client_origin.clone();
-    let mongodb = Data::new(DB::init(app_configs.clone()).await);
+    let mongodb = Data::new(DB::init(app_configs.clone()).await.unwrap());
     let webauthn = Data::new(config_webauthn(app_configs.clone()).unwrap());
     let jwt = Data::new(JWT::init());
     let broadcaster = Broadcaster::create();

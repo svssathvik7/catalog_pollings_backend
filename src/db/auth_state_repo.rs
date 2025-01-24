@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use log::{debug, error};
 use mongodb::{
     bson::doc,
@@ -16,7 +18,7 @@ pub struct AuthStateRepo {
 }
 
 impl AuthStateRepo {
-    pub async fn init(db: &Database) -> Self {
+    pub async fn init(db: &Database) -> Result<Self, Box<dyn Error>> {
         let auth_state_collection: Collection<AuthState> = db.collection("auth_states");
 
         let index = IndexModel::builder()
@@ -33,9 +35,9 @@ impl AuthStateRepo {
             error!("Failed to create index on `username`: {:?}", e);
         }
 
-        Self {
+        Ok(Self {
             collection: auth_state_collection,
-        }
+        })
     }
 
     pub async fn insert(

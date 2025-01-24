@@ -4,7 +4,7 @@ use mongodb::{
     Collection, Database,
 };
 use serde::{Deserialize, Serialize};
-
+use std::error::Error;
 #[derive(Deserialize, Serialize, Debug)]
 pub struct OptionModel {
     pub _id: ObjectId,
@@ -16,11 +16,11 @@ pub struct OptionRepo {
     pub collection: Collection<OptionModel>,
 }
 impl OptionRepo {
-    pub async fn init(db: &Database) -> Self {
+    pub async fn init(db: &Database) -> Result<Self, Box<dyn Error>> {
         let options_repo = db.collection("options");
-        Self {
+        Ok(Self {
             collection: options_repo,
-        }
+        })
     }
 
     pub async fn insert(

@@ -32,11 +32,11 @@ pub struct PollRepo {
 }
 
 impl PollRepo {
-    pub async fn init(db: &Database) -> Self {
+    pub async fn init(db: &Database) -> Result<Self, Box<dyn Error>> {
         let polls_repo = db.collection("polls");
-        Self {
+        Ok(Self {
             collection: polls_repo,
-        }
+        })
     }
 
     pub async fn insert(&self, new_poll: Poll) -> Result<InsertOneResult, mongodb::error::Error> {

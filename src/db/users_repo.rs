@@ -21,7 +21,7 @@ pub struct UserRepo {
 }
 
 impl UserRepo {
-    pub async fn init(db: &Database) -> Self {
+    pub async fn init(db: &Database) -> Result<Self, Box<dyn Error>> {
         let users_collection = db.collection("users");
         let index = IndexModel::builder()
             .keys(doc! {"username": 1})
@@ -36,9 +36,9 @@ impl UserRepo {
         if let Err(e) = users_collection.create_index(index).await {
             error!("Failed to create index on `username`: {:?}", e);
         }
-        Self {
+        Ok(Self {
             collection: users_collection,
-        }
+        })
     }
 
     pub async fn search_by_username(&self, username: &str) -> Result<Option<User>, Box<dyn Error>> {

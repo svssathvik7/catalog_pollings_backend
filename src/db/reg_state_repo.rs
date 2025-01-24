@@ -5,6 +5,7 @@ use mongodb::{
     Collection, Database, IndexModel,
 };
 use serde::{Deserialize, Serialize};
+use std::error::Error;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RegState {
     pub username: String,
@@ -16,7 +17,7 @@ pub struct RegStateRepo {
 }
 
 impl RegStateRepo {
-    pub async fn init(db: &Database) -> Self {
+    pub async fn init(db: &Database) -> Result<Self, Box<dyn Error>> {
         let reg_state_collection: Collection<RegState> = db.collection("reg_states");
         let index = IndexModel::builder()
             .keys(doc! {"username": 1})
@@ -31,9 +32,9 @@ impl RegStateRepo {
         if let Err(e) = reg_state_collection.create_index(index).await {
             error!("Failed to create index on `username`: {:?}", e);
         }
-        Self {
+        Ok(Self {
             collection: reg_state_collection,
-        }
+        })
     }
 
     pub async fn insert(
