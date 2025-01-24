@@ -1,3 +1,4 @@
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use log::{debug, error};
@@ -39,16 +40,15 @@ impl PollRepo {
         })
     }
 
-    pub async fn insert(&self, new_poll: Poll) -> Result<InsertOneResult, mongodb::error::Error> {
-        let result = self.collection.insert_one(new_poll).await;
+    pub async fn insert(&self, new_poll: Poll) -> Result<InsertOneResult> {
+        let result = self.collection.insert_one(new_poll).await.map_err(|e| {
+            error!("Error inserting poll to db {}", e);
+            anyhow::Error::new(e)
+        });
         result
     }
 
-    pub async fn delete(
-        &self,
-        poll_id: &str,
-        username: &str,
-    ) -> Result<bool, mongodb::error::Error> {
+    pub async fn delete(&self, poll_id: &str, username: &str) -> Result<bool> {
         // Check if the user is the owner of the poll
         if !self.is_owner(poll_id, username).await {
             return Ok(false); // Return false if the user is not the owner
@@ -59,25 +59,15 @@ impl PollRepo {
 
         // Attempt to delete the poll
         match self.collection.delete_one(query).await {
-            Ok(delete_result) => {
-                if delete_result.deleted_count > 0 {
-                    Ok(true) // Return true if a document was successfully deleted
-                } else {
-                    Ok(false) // Return false if no document matched the query
-                }
-            }
+            Ok(delete_result) => Ok(delete_result.deleted_count > 0),
             Err(e) => {
                 error!("Error deleting poll: {:?}", e); // Log the error
-                Err(e) // Propagate the error to the caller
+                return Err(anyhow::Error::new(e)); // Propagate the error to the caller
             }
         }
     }
 
-    pub async fn get(
-        &self,
-        poll_id: &str,
-        username: &str,
-    ) -> Result<PollResponse, mongodb::error::Error> {
+    pub async fn get(&self, poll_id: &str, username: &str) -> Result<PollResponse> {
         let pipeline = vec![
             doc! {
                 "$match" : {
@@ -154,7 +144,7 @@ impl PollRepo {
         username: String,
         option_id: ObjectId,
         db: &DB,
-    ) -> Result<bool, mongodb::error::Error> {
+    ) -> Result<bool> {
         let mut session = db.client.start_session().await.unwrap();
         session.start_transaction().await.unwrap();
         // 1. Fetch poll details
@@ -226,11 +216,7 @@ impl PollRepo {
         Ok(true)
     }
 
-    pub async fn close_poll(
-        &self,
-        poll_id: &str,
-        username: &str,
-    ) -> Result<bool, mongodb::error::Error> {
+    pub async fn close_poll(&self, poll_id: &str, username: &str) -> Result<bool> {
         if !self.is_owner(poll_id, username).await {
             return Ok(false);
         }
@@ -243,18 +229,13 @@ impl PollRepo {
             Ok(_document) => true,
             Err(e) => {
                 error!("Error closing poll {}", e);
-                return Err(e);
+                return Err(anyhow::Error::new(e));
             }
         };
         Ok(result)
     }
 
-    pub async fn reset_poll(
-        &self,
-        poll_id: &str,
-        db: &DB,
-        username: &str,
-    ) -> Result<bool, mongodb::error::Error> {
+    pub async fn reset_poll(&self, poll_id: &str, db: &DB, username: &str) -> Result<bool> {
         if !self.is_owner(poll_id, username).await {
             debug!("Only owner can reset the poll!");
             return Ok(false);
@@ -292,18 +273,14 @@ impl PollRepo {
             Ok(_) => true,
             Err(e) => {
                 error!("Error updating in reset poll {}", e);
-                return Err(e);
+                return Err(anyhow::Error::new(e));
             }
         };
 
         Ok(result)
     }
 
-    pub async fn get_live_polls(
-        &self,
-        page: u64,
-        per_page: u64,
-    ) -> Result<Vec<Document>, mongodb::error::Error> {
+    pub async fn get_live_polls(&self, page: u64, per_page: u64) -> Result<Vec<Document>> {
         // Validate pagination parameters
         let page = page.max(1);
         let per_page = per_page.clamp(1, 10);
@@ -380,11 +357,7 @@ impl PollRepo {
         Ok(results)
     }
 
-    pub async fn get_closed_polls(
-        &self,
-        page: u64,
-        per_page: u64,
-    ) -> Result<Vec<Document>, mongodb::error::Error> {
+    pub async fn get_closed_polls(&self, page: u64, per_page: u64) -> Result<Vec<Document>> {
         // Validate pagination parameters
         let page = page.max(1);
         let per_page = per_page.clamp(1, 100);
@@ -461,16 +434,24 @@ impl PollRepo {
         Ok(results)
     }
 
-    pub async fn count_live_polls(&self) -> Result<u64, mongodb::error::Error> {
+    pub async fn count_live_polls(&self) -> Result<u64> {
         self.collection
             .count_documents(doc! {"is_open": true})
             .await
+            .map_err(|e| {
+                error!("Error counting live polls! {}", e);
+                anyhow::Error::new(e)
+            })
     }
 
-    pub async fn count_closed_polls(&self) -> Result<u64, mongodb::error::Error> {
+    pub async fn count_closed_polls(&self) -> Result<u64> {
         self.collection
             .count_documents(doc! {"is_open": false})
             .await
+            .map_err(|e| {
+                error!("Error counting closed polls! {}", e);
+                anyhow::Error::new(e)
+            })
     }
     pub async fn get_polls_by_username(
         &self,
@@ -479,7 +460,7 @@ impl PollRepo {
         per_page: u64,
         sort_by: &str,
         sort_order: i8,
-    ) -> Result<Vec<Document>, mongodb::error::Error> {
+    ) -> Result<Vec<Document>> {
         // Validate pagination parameters - keeping them reasonable
         let page = page.max(1);
         let per_page = per_page.clamp(1, 100);
@@ -583,19 +564,17 @@ impl PollRepo {
     }
 
     // Helper function to count total polls by username
-    pub async fn count_polls_by_username(
-        &self,
-        username: &str,
-    ) -> Result<u64, mongodb::error::Error> {
+    pub async fn count_polls_by_username(&self, username: &str) -> Result<u64> {
         self.collection
             .count_documents(doc! {"owner_id": username})
             .await
+            .map_err(|e| {
+                error!("Error counting user polls! {}", e);
+                anyhow::Error::new(e)
+            })
     }
 
-    pub async fn get_poll_results(
-        &self,
-        poll_id: &str,
-    ) -> Result<Option<PollResults>, Box<dyn Error>> {
+    pub async fn get_poll_results(&self, poll_id: &str) -> Result<Option<PollResults>> {
         // Create an aggregation pipeline to get poll details with options
         let pipeline = vec![
             // Match the specific poll
