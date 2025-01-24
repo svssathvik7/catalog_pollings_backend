@@ -1,3 +1,4 @@
+use anyhow::Result;
 use log::error;
 use mongodb::{
     bson::{doc, oid::ObjectId},
@@ -41,16 +42,13 @@ impl UserRepo {
         })
     }
 
-    pub async fn search_by_username(&self, username: &str) -> Result<Option<User>, Box<dyn Error>> {
+    pub async fn search_by_username(&self, username: &str) -> Result<Option<User>> {
         let filter = doc! {"username": username};
         let result = self.collection.find_one(filter).await?;
         Ok(result)
     }
 
-    pub async fn get_user_id(
-        &self,
-        username: &str,
-    ) -> Result<Option<ObjectId>, mongodb::error::Error> {
+    pub async fn get_user_id(&self, username: &str) -> Result<Option<ObjectId>> {
         let filter = doc! {"username": username};
         let result = match self.collection.find_one(filter).await? {
             Some(user) => user.id,
@@ -62,13 +60,16 @@ impl UserRepo {
         Ok(result)
     }
 
-    pub async fn insert(&self, new_user: User) -> Result<InsertOneResult, mongodb::error::Error> {
-        let result = self.collection.insert_one(new_user).await;
+    pub async fn insert(&self, new_user: User) -> Result<InsertOneResult> {
+        let result = self.collection.insert_one(new_user).await.map_err(|e| {
+            error!("Error inserting user to db {}", e);
+            anyhow::Error::new(e)
+        });
         result
     }
 
     // O(1) instead of find_by_username's O(n) for checking
-    pub async fn is_exists(&self, username: &str) -> Result<bool, mongodb::error::Error> {
+    pub async fn is_exists(&self, username: &str) -> Result<bool> {
         let filter = doc! {"username": username};
         let exists = match self.collection.count_documents(filter).await {
             Ok(count) => Ok(count > 0),
@@ -80,11 +81,11 @@ impl UserRepo {
         exists
     }
 
-    pub async fn query_by_filter(
-        &self,
-        filter: mongodb::bson::Document,
-    ) -> Result<Option<User>, mongodb::error::Error> {
-        let result = self.collection.find_one(filter).await;
+    pub async fn query_by_filter(&self, filter: mongodb::bson::Document) -> Result<Option<User>> {
+        let result = self.collection.find_one(filter).await.map_err(|e| {
+            error!("Error querying by filter {}", e);
+            anyhow::Error::new(e)
+        });
 
         result
     }
