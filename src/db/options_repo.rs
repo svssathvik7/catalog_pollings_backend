@@ -1,3 +1,5 @@
+use anyhow::Result;
+use log::error;
 use mongodb::{
     bson::{oid::ObjectId, Document},
     results::{DeleteResult, InsertOneResult},
@@ -23,16 +25,19 @@ impl OptionRepo {
         })
     }
 
-    pub async fn insert(
-        &self,
-        new_option: OptionModel,
-    ) -> Result<InsertOneResult, mongodb::error::Error> {
-        let result = self.collection.insert_one(new_option).await;
+    pub async fn insert(&self, new_option: OptionModel) -> Result<InsertOneResult> {
+        let result = self.collection.insert_one(new_option).await.map_err(|e| {
+            error!("Error inserting option to db {}", e);
+            anyhow::Error::new(e)
+        });
         result
     }
 
-    pub async fn delete(&self, filter: Document) -> Result<DeleteResult, mongodb::error::Error> {
-        let result = self.collection.delete_one(filter).await;
+    pub async fn delete(&self, filter: Document) -> Result<DeleteResult> {
+        let result = self.collection.delete_one(filter).await.map_err(|e| {
+            error!("Error deleting option from db {}", e);
+            anyhow::Error::new(e)
+        });
         result
     }
 }
