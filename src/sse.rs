@@ -8,7 +8,7 @@ use tokio::time::{interval, Duration};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use crate::models::poll_api_model::{PollResponse, PollResults};
+use crate::models::poll_api_model::PollResults;
 
 pub struct Broadcaster {
     clients: Vec<Sender<Bytes>>,
@@ -58,16 +58,6 @@ impl Broadcaster {
 
     pub fn send(&self, msg: &str) {
         let msg = Bytes::from(format!("data: {}\n\n", msg));
-
-        for client in &self.clients {
-            let _ = client.clone().try_send(msg.clone());
-        }
-    }
-
-    pub fn send_updated_poll(&self, poll: &PollResponse) {
-        let poll_json = serde_json::to_string(poll).unwrap();
-
-        let msg = Bytes::from(format!("event: poll_updated\ndata: {}\n\n", poll_json));
 
         for client in &self.clients {
             let _ = client.clone().try_send(msg.clone());
