@@ -1,0 +1,62 @@
+name: Build and deploy docker image
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Initial Deployment Notification
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: '🚀 Deployment Started'
+          description: |
+            - Event: `${{ github.event_name }}`
+            - Branch: `${{ github.ref_name }}`
+            - Commit: `${{ github.sha }}`
+            - Triggered by: `${{ github.actor }}`
+
+  dockerize:
+    needs: notify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64
+          driver-opts: |
+            image=moby/buildkit:latest
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: svssathvik7/polling-app-backend:latest
+          platforms: linux/amd64
+          build-args: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+
+      - name: Build Success Notification
+        if: success()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: '✅ Build Success'
+          description: 'Docker image built and pushed: `svssathvik7/polling-app-backend:latest`'

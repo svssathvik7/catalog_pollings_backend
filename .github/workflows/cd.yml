@@ -1,0 +1,36 @@
+name: Deploy to aws ec2
+
+on:
+  workflow_run:
+    workflows: ["Build and deploy docker image"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.9
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_PRIVATE_KEY }}
+          script: |
+            sudo docker pull svssathvik7/polling-app-backend:latest
+            sudo docker stop backend || true
+            sudo docker rm backend || true
+            sudo docker run -d --name backend -p 8080:8080 svssathvik7/polling-app-backend:latest
+
+      - name: Deployment Notification
+        uses: sarisia/actions-status-discord@v1
+        if: always()
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          title: "🚀 EC2 Deployment Status"
+          description: |
+            Status: ${{ job.status }}
+            Environment: Production
+            Service: Backend Application
