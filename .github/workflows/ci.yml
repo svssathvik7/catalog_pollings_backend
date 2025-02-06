@@ -50,8 +50,14 @@ jobs:
           tags: svssathvik7/polling-app-backend:latest
           platforms: linux/amd64
           build-args: |
-            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            PROD_DB_URL=${{ secrets.PROD_DB_URL }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
+            PROD_RP_ORIGIN=${{ secrets.PROD_RP_ORIGIN }}
+            PROD_RP_ID=${{ secrets.PROD_RP_ID }}
+            PROD_CLIENT_ORIGIN=${{ secrets.PROD_CLIENT_ORIGIN }}
+            PROD_SERVER_ADDR=${{ secrets.PROD_SERVER_ADDR }}
+            TOKEN_SECRET=${{ secrets.TOKEN_SECRET }}
+            IS_DEV=false
 
       - name: Build Success Notification
         if: success()

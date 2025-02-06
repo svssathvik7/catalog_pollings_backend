@@ -1,3 +1,4 @@
+# Build stage using rust:alpine
 FROM rust:1.83-alpine3.20 AS builder
 
 WORKDIR /app
@@ -22,36 +23,32 @@ COPY ./src ./src
 RUN cargo build --release
 
 
-FROM alpine:latest AS runner
+FROM alpine:latest
 
 WORKDIR /app
 
-# Group non-sensitive environment variables
-ENV IS_DEV=true \
-    DEV_RP_ID=localhost \
-    DEV_RP_ORIGIN=http://localhost:3000 \
-    DEV_CLIENT_ORIGIN=http://localhost:3000 \
-    DEV_SERVER_ADDR=localhost \
-    RUST_LOG=trace
-
-# Use build arguments for sensitive data, but don't set defaults
-ARG TOKEN_SECRET
-ARG JWT_SECRET
 ARG PROD_DB_URL
-ARG PROD_RP_ID
+ARG JWT_SECRET
 ARG PROD_RP_ORIGIN
+ARG PROD_RP_ID
 ARG PROD_CLIENT_ORIGIN
 ARG PROD_SERVER_ADDR
-ARG IS_DEV=true
+ARG TOKEN_SECRET
+ARG IS_DEV=false
 
-# Set sensitive environment variables at runtime
-ENV IS_DEV=${IS_DEV}
-ENV TOKEN_SECRET=${TOKEN_SECRET}
+
+ENV DEV_DB_URL=${PROD_DB_URL}
 ENV JWT_SECRET=${JWT_SECRET}
-ENV DEV_DB_URL=${DEV_DB_URL}
+ENV DEV_RP_ORIGIN=${PROD_RP_ORIGIN}
+ENV DEV_RP_ID=${PROD_RP_ID}
+ENV DEV_CLIENT_ORIGIN=${PROD_CLIENT_ORIGIN}
+ENV DEV_SERVER_ADDR=${PROD_SERVER_ADDR}
+ENV TOKEN_SECRET=${TOKEN_SECRET}
+ENV IS_DEV=${IS_DEV}
+
 
 COPY --from=builder /app/target/release/polling-app-backend /usr/local/bin/polling-app-backend
 
-EXPOSE 3001
+EXPOSE 5000
 
 CMD [ "/usr/local/bin/polling-app-backend" ]
